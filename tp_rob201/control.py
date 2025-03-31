@@ -10,10 +10,24 @@ def reactive_obst_avoid(lidar):
     lidar : placebot object with lidar data
     """
     # TODO for TP1
-
+    
     laser_dist = lidar.get_sensor_values()
-    speed = 0.0
-    rotation_speed = 0.0
+    laser_angles = lidar.get_ray_angles()
+
+    #xo_ref = laser_dist * np.cos(laser_angles)
+    #yo_ref = laser_dist * np.sin(laser_angles)
+
+    #print(xo_ref[180], yo_ref[180])
+    
+    threshold_distance = 30  # Seuil de détection d'un obstacle (par exemple, 50 cm)
+
+    if laser_dist[180] < threshold_distance:
+        rotation_angle = random.uniform(-1, 1)
+        speed = 0.0
+        rotation_speed = rotation_angle
+    else:
+        speed = 0.2  # Avancer à une vitesse constante
+        rotation_speed = 0.0  # Pas de rotation, on va tout droit
 
     command = {"forward": speed,
                "rotation": rotation_speed}

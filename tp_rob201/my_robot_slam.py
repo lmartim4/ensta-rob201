@@ -29,7 +29,7 @@ class MyRobotSlam(RobotAbstract):
 
         # step counter to deal with init and display
         self.counter = 0
-
+        self.last_rotation = 0
         # Init SLAM object
         # Here we cheat to get an occupancy grid size that's not too large, by using the
         # robot's starting position and the maximum map size that we shouldn't know.
@@ -58,13 +58,22 @@ class MyRobotSlam(RobotAbstract):
         Control function for TP1
         Control funtion with minimal random motion
         """
-        self.tiny_slam.compute()
-
-        # Compute new command speed to perform obstacle avoidance
-        command = reactive_obst_avoid(self.lidar())
+        
+        if(self.counter > 0):
+            self.counter -= 1
+            
+            command = {"forward": 0.5,
+               "rotation": self.last_rotation}
+        else:
+            command = reactive_obst_avoid(self.lidar())
+            if(command["rotation"] != 0):
+                self.last_rotation = command["rotation"]
+                self.counter = 30
+        
         return command
 
     def control_tp2(self):
+        print("WHAT")
         """
         Control function for TP2
         Main control function with full SLAM, random exploration and path planning
