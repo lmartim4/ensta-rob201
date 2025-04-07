@@ -46,8 +46,36 @@ def potential_field_control(lidar, current_pose, goal_pose):
     on initial pose, x forward, y on left)
     """
     # TODO for TP2
-
-    command = {"forward": 0,
-               "rotation": 0}
+    print(current_pose, goal_pose)  
+    diff = goal_pose - current_pose
+    
+    dist = np.sqrt(diff[0]**2 + diff[1]**2) 
+    
+    d_lim = 1
+    K_goal = 0.03
+    
+    if(dist > d_lim):
+        grad_f = K_goal * (diff) / dist
+    else:
+        command = {"forward": 0, "rotation": 0}
+        return command
+    
+    angle_diff = np.atan2(grad_f[1], grad_f[0])
+    
+    speed = np.sqrt(grad_f[0]**2 + grad_f[1]**2)
+    speed = max(speed, -1)
+    speed = min(speed, 1)
+    
+    Kv = 0.3
+    
+    angle_speed = Kv*(angle_diff - current_pose[2])
+    angle_speed = min(angle_speed, +1)
+    angle_speed = max(angle_speed, -1)
+    
+    print(speed, angle_speed)
+    
+    command = {"forward": speed,
+               "rotation": angle_speed}
 
     return command
+        
