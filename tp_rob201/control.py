@@ -45,37 +45,69 @@ def potential_field_control(lidar, current_pose, goal_pose):
     robot (x,y) frame (centered on robot, x forward, y on left) or in odom (centered / aligned
     on initial pose, x forward, y on left)
     """
-    # TODO for TP2
-    print(current_pose, goal_pose)  
-    diff = goal_pose - current_pose
     
-    dist = np.sqrt(diff[0]**2 + diff[1]**2) 
+    grad_atractive = calculate_atractive_grad(current_pose, goal_pose, d_lim=3, K_goal=0.1)
+    grad_repulsive = calculate_repulsive_grad(lidar, current_pose, k_obs=1, d_safe=50)
     
-    d_lim = 1
-    K_goal = 0.03
+    grad_r = grad_atractive  - grad_repulsive
     
-    if(dist > d_lim):
-        grad_f = K_goal * (diff) / dist
-    else:
-        command = {"forward": 0, "rotation": 0}
-        return command
+    print(f"Front distance: {lidar.get_sensor_values()[180]}")
+    print(f"Attractive force: {np.linalg.norm(grad_atractive)}")
+    print(f"Repulsive force: {np.linalg.norm(grad_repulsive)}")    
     
-    angle_diff = np.atan2(grad_f[1], grad_f[0])
+    print("atrc: ", grad_atractive)
+    print("repul: ", grad_repulsive)
+    print("grad_r", grad_r)
     
-    speed = np.sqrt(grad_f[0]**2 + grad_f[1]**2)
-    speed = max(speed, -1)
-    speed = min(speed, 1)
     
-    Kv = 0.3
     
-    angle_speed = Kv*(angle_diff - current_pose[2])
-    angle_speed = min(angle_speed, +1)
-    angle_speed = max(angle_speed, -1)
+    forward_speed = 0.1 #np.sqrt(grad_r[0]**2 + grad_r[1]**2)
+    rotation_speed = calculate_rotation_speed(grad_r, current_pose, Kv=1)
+    print(rotation_speed)
     
-    print(speed, angle_speed)
-    
-    command = {"forward": speed,
-               "rotation": angle_speed}
+    return {"forward":  np.clip(forward_speed, a_min=-1, a_max=1),
+            "rotation": np.clip(rotation_speed, a_min=-1, a_max=1)}
 
-    return command
+def calculate_atractive_grad(current_pose, goal_pose, d_lim, K_goal):
+    goal_minus_current = goal_pose - current_pose
+    dist = np.sqrt(goal_minus_current[0]**2 + goal_minus_current[1]**2) 
+    
+    print(f"Error: ({dist}) - {goal_minus_current}")
+    
+    if(dist <= d_lim):
+        grad_f = K_goal*goal_minus_current / d_lim
+        return np.array([0,0,0])
+        #return grad_f
+    else:
+        grad_f = K_goal * (goal_minus_current) / dist
+    
+    return grad_f
+
+def calculate_rotation_speed(grad_r, current_pose, Kv):
+    target_angle = np.atan2(-grad_r[1], grad_r[0])
+    angle_error = (target_angle - current_pose[2])
+    
+    print(f"target: {target_angle*180/np.pi} current = {current_pose[2]*180/np.pi} error= {angle_error*180/np.pi}")
+    
+    if(np.abs(angle_error)*180/np.pi < 2):
+        return 0
+    else:
+        return -Kv*(angle_error)
+      
+def calculate_repulsive_grad(lidar, current_pose, k_obs, d_safe):
+    if d_safe == 0:
+        raise ValueError("d_safe should not be 0!")
+    
+    gradient = np.zeros(3)
+    
+    for (l, angle) in zip(lidar.get_sensor_values(), lidar.get_ray_angles()):
+        if l == 0:
+            print("Lidar received a 0 ???")
+        
+        if l < d_safe:
+            q_obs = np.array([l * np.cos(angle), l * np.sin(angle), 0])
+            gradient += k_obs * (1 / l - 1 / d_safe) * (q_obs - current_pose)
+    
+    return gradient
+
         
