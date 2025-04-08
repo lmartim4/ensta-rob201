@@ -10,7 +10,7 @@ from worlds.my_world import MyWorld
 
 if __name__ == '__main__':
     lidar_params = LidarParams()
-    lidar_params.noise_enable = True
+    lidar_params.noise_enable = False
     # lidar_params.fov = 360
     # lidar_params.resolution = 361
     # lidar_params.max_range = 600
@@ -31,6 +31,6 @@ if __name__ == '__main__':
                            odometer_params=odometer_params)
     my_world = MyWorld(robot=my_robot, use_shaders=use_shaders)
     simulator = Simulator(the_world=my_world,
-                          use_keyboard=True)
+                          use_keyboard=False)
 
     simulator.run()
