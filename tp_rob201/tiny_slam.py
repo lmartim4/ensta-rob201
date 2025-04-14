@@ -59,12 +59,12 @@ class TinySlam:
         """
     
         x = pose[0] + lidar.get_sensor_values() * np.cos(pose[2]+lidar.get_ray_angles())
-        y = pose[0] + lidar.get_sensor_values() * np.sin(pose[2]+lidar.get_ray_angles())
+        y = pose[1] + lidar.get_sensor_values() * np.sin(pose[2]+lidar.get_ray_angles())
         
         self.grid.add_map_points(x, y, 10)
         
         x = pose[0] + (lidar.get_sensor_values() - 20.0) * np.cos(pose[2]+lidar.get_ray_angles())
-        y = pose[0] + (lidar.get_sensor_values() - 20.0) * np.sin(pose[2]+lidar.get_ray_angles())
+        y = pose[1] + (lidar.get_sensor_values() - 20.0) * np.sin(pose[2]+lidar.get_ray_angles())
                 
         for xi, yi in zip(x, y):
             self.grid.add_value_along_line(pose[0], pose[1], xi, yi, -1)

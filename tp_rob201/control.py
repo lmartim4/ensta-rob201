@@ -47,7 +47,7 @@ def potential_field_control(lidar, current_pose, goal_pose):
     grad_r = grad_atractive - grad_repulsive
     
     forward_speed = np.sqrt(grad_r[0]**2 + grad_r[1]**2)
-    rotation_speed = calculate_rotation_speed(grad_r, current_pose)
+    rotation_speed = calculate_rotation_speed(grad_r, current_pose, Kv=0.3)
     
     if(grad_atractive[0] < 0.001):
         return {
@@ -75,7 +75,7 @@ def calculate_atractive_grad(current_pose, goal_pose, d_lim, K_goal):
     
     return grad_f
 
-def calculate_rotation_speed(grad_r, current_pose, Kv=0.5):
+def calculate_rotation_speed(grad_r, current_pose, Kv):
     target_angle = np.atan2(grad_r[1], grad_r[0])
     angle_error = (target_angle - current_pose[2])
     
