@@ -50,25 +50,29 @@ class TinySlam:
         best_score = 0
 
         return best_score
-
+    
     def update_map(self, lidar, pose):
         """
         Bayesian map update with new observation
         lidar : placebot object with lidar data
         pose : [x, y, theta] nparray, corrected pose in world coordinates
         """
-        # TODO for TP3
-
-    def compute(self):
-        """ Useless function, just for the exercise on using the profiler """
-        # Remove after TP1
-
-        ranges = np.random.rand(3600)
-        ray_angles = np.arange(-np.pi, np.pi, np.pi / 1800)
-
-        # Poor implementation of polar to cartesian conversion
-        points = []
-        for i in range(3600):
-            pt_x = ranges[i] * np.cos(ray_angles[i])
-            pt_y = ranges[i] * np.sin(ray_angles[i])
-            points.append([pt_x, pt_y])
+    
+        x = pose[0] + lidar.get_sensor_values() * np.cos(pose[2]+lidar.get_ray_angles())
+        y = pose[0] + lidar.get_sensor_values() * np.sin(pose[2]+lidar.get_ray_angles())
+        
+        self.grid.add_map_points(x, y, 10)
+        
+        x = pose[0] + (lidar.get_sensor_values() - 20.0) * np.cos(pose[2]+lidar.get_ray_angles())
+        y = pose[0] + (lidar.get_sensor_values() - 20.0) * np.sin(pose[2]+lidar.get_ray_angles())
+                
+        for xi, yi in zip(x, y):
+            self.grid.add_value_along_line(pose[0], pose[1], xi, yi, -1)
+        
+        
+        self.grid.occupancy_map = np.clip(self.grid.occupancy_map, -40, 40)
+        self.grid.display_cv(pose)
+        
+        
+        
+        

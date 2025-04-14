@@ -23,6 +23,6 @@ class MyWorld(WorldAbstract):
         walls_my_world.add_boxes(self._playground)
 
         # POSITION OF THE ROBOT
-        angle = 0 #math.pi  # random.uniform(-math.pi, math.pi)
-        self._robot_pos = ((0, 0), 0)
+        angle = 0  # random.uniform(-math.pi, math.pi)
+        self._robot_pos = ((0.0, 0), angle)
         self._playground.add(robot, self._robot_pos)

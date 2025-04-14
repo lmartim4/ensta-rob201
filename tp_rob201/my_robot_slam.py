@@ -3,6 +3,7 @@ Robot controller definition
 Complete controller including SLAM, planning, path following
 """
 import numpy as np
+import random
 
 from place_bot.entities.robot_abstract import RobotAbstract
 from place_bot.entities.odometer import OdometerParams
@@ -28,6 +29,7 @@ class MyRobotSlam(RobotAbstract):
                          odometer_params=odometer_params)
 
         # step counter to deal with init and display
+        self.current_target = [0, -10, 0]
         self.counter = 0
         self.last_rotation = 0
         # Init SLAM object
@@ -51,6 +53,12 @@ class MyRobotSlam(RobotAbstract):
         """
         Main control function executed at each time step
         """
+        
+        self.counter = self.counter + 1
+        
+        if(self.counter % 10 == 0):
+            self.tiny_slam.update_map(self.lidar(), self.odometer_values())
+        
         return self.control_tp2()
 
     def control_tp1(self):
@@ -78,9 +86,39 @@ class MyRobotSlam(RobotAbstract):
         Main control function with full SLAM, random exploration and path planning
         """
         pose = self.odometer_values()
-        goal = [450, 200, 0]
-
-        # Compute new command speed to perform obstacle avoidance
-        command = potential_field_control(self.lidar(), pose, goal)
-
+        lidar = self.lidar()
+        
+        command = potential_field_control(lidar, pose, self.current_target)
+        
+        if command["forward"] == 0.0:
+            self.choose_random_goal(pose, lidar)
+            print(f"Choosing new random goal: {self.current_target[:2]}")
+        
         return command
+    
+    def choose_random_goal(self, pose, lidar):
+        """
+        Choose a random goal based on one of the lidar readings
+        """
+        # Get lidar angles and distances
+        angles = lidar.get_ray_angles()
+        distances = lidar.get_sensor_values()
+        
+        if len(distances) == 0:
+            # Fallback if no lidar readings
+            return self.choose_random_direction(pose)
+        
+        # Pick a random lidar reading
+        random_index = random.randint(0, len(distances) - 1)
+        random_angle = angles[random_index]
+        random_distance = distances[random_index]
+        
+        # Use a fraction of the distance to stay away from obstacles
+        safe_distance = min(random_distance * 0.7, 300)  # 70% of distance or max 200 units
+        
+        # Calculate world coordinates
+        x = pose[0] + safe_distance * np.cos(pose[2] + random_angle)
+        y = pose[1] + safe_distance * np.sin(pose[2] + random_angle)
+        
+        # Set as target
+        self.current_target = [x, y, 0]

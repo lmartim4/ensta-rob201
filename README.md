@@ -1,5 +1,7 @@
 # Welcome to *ensta-rob201*
 
+[Link Cours](https://perso.ensta-paris.fr/~manzaner/Cours/ROB201/)
+
 This git repository *ensta-rob201* is the starting point for your work during the ROB201 project/course. The online, up-to-date version of this code is available at: [GitHub repository *ensta-rob201*](https://github.com/emmanuel-battesti/ensta-rob201)
 
 To start working on your ROB201 project, you will have to install this repository (which will install required dependencies). The [INSTALL.md](INSTALL.md) file contains installation tips for Ubuntu and Windows. The code will work also on MacOS, with minimal adaptation of the Ubuntu installation instructions.
