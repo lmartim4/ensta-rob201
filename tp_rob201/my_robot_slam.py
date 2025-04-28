@@ -53,11 +53,17 @@ class MyRobotSlam(RobotAbstract):
         """
         Main control function executed at each time step
         """
+        localised = self.tiny_slam.localise(self.lidar(), self.odometer_values())
         
-        self.counter = self.counter + 1
+        print("Final score: " + localised)
+        
+        pose = self.odometer_values()
+        
+        self.tiny_slam.update_map(self.lidar(), pose)
+        self.counter += 1
         
         if(self.counter % 10 == 0):
-            self.tiny_slam.update_map(self.lidar(), self.odometer_values())
+            self.tiny_slam.grid.display_cv(pose)
         
         return self.control_tp2()
 
@@ -100,25 +106,19 @@ class MyRobotSlam(RobotAbstract):
         """
         Choose a random goal based on one of the lidar readings
         """
-        # Get lidar angles and distances
         angles = lidar.get_ray_angles()
         distances = lidar.get_sensor_values()
         
         if len(distances) == 0:
-            # Fallback if no lidar readings
             return self.choose_random_direction(pose)
         
-        # Pick a random lidar reading
         random_index = random.randint(0, len(distances) - 1)
         random_angle = angles[random_index]
         random_distance = distances[random_index]
         
-        # Use a fraction of the distance to stay away from obstacles
-        safe_distance = min(random_distance * 0.7, 300)  # 70% of distance or max 200 units
+        safe_distance = min(random_distance * 0.7, 300)
         
-        # Calculate world coordinates
         x = pose[0] + safe_distance * np.cos(pose[2] + random_angle)
         y = pose[1] + safe_distance * np.sin(pose[2] + random_angle)
         
-        # Set as target
         self.current_target = [x, y, 0]

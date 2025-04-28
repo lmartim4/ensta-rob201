@@ -2,8 +2,7 @@
 
 import random
 import numpy as np
-
-
+ 
 def reactive_obst_avoid(lidar):
     """
     Simple obstacle avoidance
@@ -29,7 +28,6 @@ def reactive_obst_avoid(lidar):
 
     return command
 
-
 def potential_field_control(lidar, current_pose, goal_pose):
     """
     Control using potential field for goal reaching and obstacle avoidance
@@ -41,7 +39,7 @@ def potential_field_control(lidar, current_pose, goal_pose):
     on initial pose, x forward, y on left)
     """
     
-    grad_atractive = calculate_atractive_grad(current_pose, goal_pose, d_lim=20, K_goal=0.05)
+    grad_atractive = calculate_atractive_grad(current_pose, goal_pose, d_lim=20, K_goal=0.18)
     grad_repulsive = calculate_repulsive_grad(lidar, current_pose, k_obs=0.03, d_safe=60)
     
     grad_r = grad_atractive - grad_repulsive
@@ -65,7 +63,7 @@ def calculate_atractive_grad(current_pose, goal_pose, d_lim, K_goal):
     diff = goal_pose - current_pose
     dist = np.sqrt(diff[0]**2 + diff[1]**2) 
     
-    print(f"error={dist} => goal={goal_pose[:2]} , current={current_pose[:2]}")
+    #print(f"error={dist} => goal={goal_pose[:2]} , current={current_pose[:2]}")
     
     if(dist <= d_lim):
         grad_f = K_goal*diff / d_lim
@@ -79,7 +77,7 @@ def calculate_rotation_speed(grad_r, current_pose, Kv):
     target_angle = np.atan2(grad_r[1], grad_r[0])
     angle_error = (target_angle - current_pose[2])
     
-    print(f"target: {target_angle*180/np.pi:.2f}° current = {current_pose[2]*180/np.pi:.2f}° error= {angle_error*180/np.pi:.2f}°")
+    #print(f"target: {target_angle*180/np.pi:.2f}° current = {current_pose[2]*180/np.pi:.2f}° error= {angle_error*180/np.pi:.2f}°")
     
     if(np.abs(angle_error)*180/np.pi < 1):
         return 0
