@@ -53,17 +53,18 @@ class MyRobotSlam(RobotAbstract):
         """
         Main control function executed at each time step
         """
-        localised = self.tiny_slam.localise(self.lidar(), self.odometer_values())
+        odometer_data = self.odometer_values()
         
-        print("Final score: " + localised)
+        best_score = self.tiny_slam.localise(self.lidar(), odometer_data)
+        note_sur_20 = (best_score*20/(self.occupancy_grid.max_grid_value*360))
+        print(f"Score = {note_sur_20:.1f}")
+        self.corrected_pose = self.tiny_slam.get_corrected_pose(odometer_data)
         
-        pose = self.odometer_values()
-        
-        self.tiny_slam.update_map(self.lidar(), pose)
+        self.tiny_slam.update_map(self.lidar(), self.corrected_pose)
         self.counter += 1
         
         if(self.counter % 10 == 0):
-            self.tiny_slam.grid.display_cv(pose)
+            self.tiny_slam.grid.display_cv(self.corrected_pose, self.current_target)
         
         return self.control_tp2()
 
@@ -109,14 +110,11 @@ class MyRobotSlam(RobotAbstract):
         angles = lidar.get_ray_angles()
         distances = lidar.get_sensor_values()
         
-        if len(distances) == 0:
-            return self.choose_random_direction(pose)
-        
         random_index = random.randint(0, len(distances) - 1)
         random_angle = angles[random_index]
         random_distance = distances[random_index]
         
-        safe_distance = min(random_distance * 0.7, 300)
+        safe_distance = min(random_distance * 0.7, 600)
         
         x = pose[0] + safe_distance * np.cos(pose[2] + random_angle)
         y = pose[1] + safe_distance * np.sin(pose[2] + random_angle)

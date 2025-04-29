@@ -17,6 +17,7 @@ class OccupancyGrid:
 
     def __init__(self, x_min, x_max, y_min, y_max, resolution):
         # Given : constructor
+        self.max_grid_value = 40 
         self.x_min_world = x_min
         self.x_max_world = x_max
         self.y_min_world = y_min

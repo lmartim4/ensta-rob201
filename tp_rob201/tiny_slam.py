@@ -11,7 +11,6 @@ class TinySlam:
     
     def __init__(self, occupancy_grid: OccupancyGrid):
         self.grid = occupancy_grid
-        self.max_grid_value = 40
         # Origin of the odom frame in the map frame
         self.odom_pose_ref = np.array([0, 0, 0])
 
@@ -37,10 +36,28 @@ class TinySlam:
         y_world = y + filtered_values * np.sin(theta + filtered_angles)
         
         map_coords = self.grid.conv_world_to_map(x_world, y_world)
-        log_probs = self.grid.occupancy_map[map_coords]
         
+        valid_mask = (
+            (map_coords[0] >= 0) &
+            (map_coords[0] < self.grid.x_max_map) &
+            (map_coords[1] >= 0) &
+            (map_coords[1] < self.grid.y_max_map)
+        )
+
+        # Extract valid coordinates
+        valid_x = map_coords[0][valid_mask]
+        valid_y = map_coords[1][valid_mask]
+        
+        # Convert to integers for indexing
+        valid_x = valid_x.astype(int)
+        valid_y = valid_y.astype(int)
+        
+        # Get log probabilities from occupancy map for valid coordinates
+        log_probs = self.grid.occupancy_map[valid_x, valid_y]
+        
+        # Compute total score
         score = np.sum(log_probs)
-        
+            
         return score
 
     def get_corrected_pose(self, odom_pose, odom_pose_ref=None):
@@ -51,26 +68,24 @@ class TinySlam:
         odom_pose_ref : optional, origin of the odom frame if given,
                         use self.odom_pose_ref if not given
         """
-        # TODO for TP4
-        if(odom_pose_ref == None):
-            print("should not be none")
+        # Lembrete: Não entendi o pra que server esse referencial 
+        # opcional... Se eu tiver ele eu desconsidero o guardado?
         
-        ref_x, ref_y, ref_theta = odom_pose_ref
-            
-        corrected_pose = odom_pose
+        if odom_pose_ref is None:
+            odom_pose_ref = self.odom_pose_ref
+        
+        return odom_pose_ref + odom_pose
 
-        return corrected_pose
-
-    def localise(self, lidar, raw_odom_pose, N = 20):
+    def localise(self, lidar, raw_odom_pose, N = 10):
         """
         Compute the robot position wrt the map, and updates the odometry reference
         lidar : placebot object with lidar data
         odom : [x, y, theta] nparray, raw odometry position
         """
         best_score = self._score(lidar, raw_odom_pose)
-        best_pose = raw_odom_pose.copy()
         
-        sigma = [10, 10, 0.02]
+        sigma = [40, 40, 10]
+        #sigma = [0,0,0]
         
         iterations_without_improvement = 0
         
@@ -82,12 +97,11 @@ class TinySlam:
             
             if new_score > best_score:
                 best_score = new_score
-                best_pose = new_pose.copy()
+                self.odom_pose_ref = offset
                 iterations_without_improvement = 0
             else:
                 iterations_without_improvement += 1
-        
-        self.odom_ref = best_pose
+                
         return best_score
     
     def update_map(self, lidar, pose):
@@ -99,7 +113,7 @@ class TinySlam:
     
         x = pose[0] + lidar.get_sensor_values() * np.cos(pose[2]+lidar.get_ray_angles())
         y = pose[1] + lidar.get_sensor_values() * np.sin(pose[2]+lidar.get_ray_angles())
-        
+
         self.grid.add_map_points(x, y, 10)
         
         x = pose[0] + (lidar.get_sensor_values() - 20.0) * np.cos(pose[2]+lidar.get_ray_angles())
@@ -108,7 +122,7 @@ class TinySlam:
         for xi, yi in zip(x, y):
             self.grid.add_value_along_line(pose[0], pose[1], xi, yi, -1)
         
-        self.grid.occupancy_map = np.clip(self.grid.occupancy_map, -self.max_grid_value, self.max_grid_value)
+        self.grid.occupancy_map = np.clip(self.grid.occupancy_map, -self.grid.max_grid_value, self.grid.max_grid_value)
         
         
         
