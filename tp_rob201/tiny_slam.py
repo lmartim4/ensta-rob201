@@ -84,8 +84,8 @@ class TinySlam:
         current_correction = self.get_corrected_pose(raw_odom_pose, self.odom_pose_ref)
         best_score = self._score(lidar, current_correction)
 
-        sigma = [5, 5, 0.05]
-        # sigma = [0,0,0]
+        sigma = [5, 5, 1]
+        # sigma = [0, 0, 0]
 
         iterations_without_improvement = 0
 
@@ -119,12 +119,12 @@ class TinySlam:
             pose[2] + lidar.get_ray_angles()
         )
 
-        self.grid.add_map_points(x, y, 10)
+        self.grid.add_map_points(x, y, 2)
 
-        x = pose[0] + (lidar.get_sensor_values() - 20.0) * np.cos(
+        x = pose[0] + (lidar.get_sensor_values() - 10.0) * np.cos(
             pose[2] + lidar.get_ray_angles()
         )
-        y = pose[1] + (lidar.get_sensor_values() - 20.0) * np.sin(
+        y = pose[1] + (lidar.get_sensor_values() - 10.0) * np.sin(
             pose[2] + lidar.get_ray_angles()
         )
 

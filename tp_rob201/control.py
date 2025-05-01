@@ -1,6 +1,7 @@
 """A set of robotics control functions"""
 
 import random
+
 import numpy as np
 
 
@@ -40,18 +41,16 @@ def potential_field_control(lidar, current_pose, goal_pose):
     """
 
     grad_atractive = calculate_atractive_grad(
-        current_pose, goal_pose, d_lim=20, K_goal=0.18
+        current_pose, goal_pose, d_lim=30, K_goal=0.19
     )
-    grad_repulsive = calculate_repulsive_grad(
-        lidar, current_pose, k_obs=0.03, d_safe=60
-    )
+    grad_repulsive = calculate_repulsive_grad(lidar, current_pose, k_obs=16, d_safe=65)
 
     grad_r = grad_atractive - grad_repulsive
 
     forward_speed = np.sqrt(grad_r[0] ** 2 + grad_r[1] ** 2)
-    rotation_speed = calculate_rotation_speed(grad_r, current_pose, Kv=0.3)
+    rotation_speed = calculate_rotation_speed(grad_r, current_pose, Kv=0.1)
 
-    if grad_atractive[0] < 0.001 and rotation_speed < 0.001:
+    if abs(grad_atractive[0]) < 0.00001 and abs(rotation_speed) < 0.00001:
         return {"forward": 0, "rotation": 0}
 
     return {
@@ -112,4 +111,3 @@ def calculate_repulsive_grad(lidar, current_pose, k_obs, d_safe):
     gradient = np.sum(gradient_components, axis=0)
 
     return gradient
-
