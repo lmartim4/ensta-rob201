@@ -67,13 +67,23 @@ class TinySlam:
         odom_pose_ref : optional, origin of the odom frame if given,
                         use self.odom_pose_ref if not given
         """
-        # Lembrete: Não entendi o pra que server esse referencial
-        # opcional... Se eu tiver ele eu desconsidero o guardado?
-
         if odom_pose_ref is None:
             odom_pose_ref = self.odom_pose_ref
 
-        return odom_pose_ref + odom_pose
+        # Robot Odom
+        x0, y0, theta0 = odom_pose
+        x0ref, y0ref, theta0ref = odom_pose_ref
+        # Robot Absolut
+        alpha0 = np.arctan2(y0, x0)
+        d0 = np.sqrt(x0**2 + y0**2)
+
+        x = x0ref + d0 * np.cos(theta0ref + alpha0)
+        y = y0ref + d0 * np.sin(theta0ref + alpha0)
+        theta = theta0ref + theta0
+
+        corrected_pose = np.array([x, y, theta])
+        # print(f"corrected_pose() = {corrected_pose}")
+        return corrected_pose
 
     def localise(self, lidar, raw_odom_pose, N=20):
         """
@@ -81,7 +91,8 @@ class TinySlam:
         lidar : placebot object with lidar data
         odom : [x, y, theta] nparray, raw odometry position
         """
-        current_correction = self.get_corrected_pose(raw_odom_pose, self.odom_pose_ref)
+        current_odom_pos_ref = self.odom_pose_ref
+        current_correction = self.get_corrected_pose(raw_odom_pose)
         best_score = self._score(lidar, current_correction)
 
         sigma = [5, 5, 1]
@@ -92,17 +103,18 @@ class TinySlam:
         while iterations_without_improvement < N:
             offset = np.random.normal(0, sigma, 3)
 
-            new_pose = current_correction + offset
+            odom_pose_ref_offset = current_odom_pos_ref + offset
+            new_pose = self.get_corrected_pose(raw_odom_pose, odom_pose_ref_offset)
             new_score = self._score(lidar, new_pose)
 
             if new_score > best_score:
                 best_score = new_score
-                self.odom_pose_ref += offset
+                self.odom_pose_ref = odom_pose_ref_offset
                 iterations_without_improvement = 0
             else:
                 iterations_without_improvement += 1
 
-        print(f"odom_pose_ref={self.odom_pose_ref}")
+        # print(f"odom_pose_ref={self.odom_pose_ref}")
         return best_score
 
     def update_map(self, lidar, pose):
