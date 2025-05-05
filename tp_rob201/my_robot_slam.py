@@ -65,6 +65,7 @@ class MyRobotSlam(RobotAbstract):
         best_score = self.tiny_slam.localise(self.lidar(), odometer_data)
         note_sur_20 = best_score * 20 / (self.occupancy_grid.max_grid_value * 360)
         print(f"Score = {note_sur_20:.1f}")
+
         self.corrected_pose = self.tiny_slam.get_corrected_pose(odometer_data)
 
         self.tiny_slam.update_map(self.lidar(), self.corrected_pose)
@@ -73,7 +74,10 @@ class MyRobotSlam(RobotAbstract):
         if self.counter % 10 == 0:
             self.tiny_slam.grid.display_cv(self.corrected_pose, self.current_target)
 
-        return self.control_tp2()
+        control = self.control_tp2()
+
+        print(control)
+        return control
 
     def control_tp1(self):
         """
@@ -98,7 +102,7 @@ class MyRobotSlam(RobotAbstract):
         Control function for TP2
         Main control function with full SLAM, random exploration and path planning
         """
-        pose = self.odometer_values()
+        pose = self.corrected_pose
         lidar = self.lidar()
 
         command = potential_field_control(lidar, pose, self.current_target)
