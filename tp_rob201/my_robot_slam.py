@@ -61,15 +61,19 @@ class MyRobotSlam(RobotAbstract):
         Main control function executed at each time step
         """
         odometer_data = self.odometer_values()
+        lidar = self.lidar()
 
-        best_score = self.tiny_slam.localise(self.lidar(), odometer_data)
+
+        best_score = self.tiny_slam.localise(lidar, odometer_data)
         note_sur_20 = best_score * 20 / (self.occupancy_grid.max_grid_value * 360)
+
+        print("==================")
         print(f"Score = {note_sur_20:.1f}")
 
         self.corrected_pose = self.tiny_slam.get_corrected_pose(odometer_data)
 
-        if best_score > 14 or self.counter < 20:
-            self.tiny_slam.update_map(self.lidar(), self.corrected_pose)
+        if best_score > 16 or self.counter < 20:
+            self.tiny_slam.update_map(lidar, self.corrected_pose)
 
         self.counter += 1
 
@@ -78,6 +82,10 @@ class MyRobotSlam(RobotAbstract):
 
         control = self.control_tp2()
 
+        forward_speed = control["forward"]
+        rotation_speed = control["rotation"]
+
+        print(f"F: {forward_speed:.4f} R: {rotation_speed:.4f}")
         return control
 
     def control_tp1(self):
@@ -104,6 +112,8 @@ class MyRobotSlam(RobotAbstract):
         Main control function with full SLAM, random exploration and path planning
         """
         pose = self.odometer_values()
+        pose = self.tiny_slam.get_corrected_pose(pose)
+
         lidar = self.lidar()
 
         command = potential_field_control(lidar, pose, self.current_target)
@@ -111,6 +121,8 @@ class MyRobotSlam(RobotAbstract):
         if command["forward"] == 0.0 and command["rotation"] == 0.0:
             self.choose_random_goal(pose, lidar)
             print(f"Choosing new random goal: {self.current_target[:2]}")
+
+
 
         return command
 
@@ -125,9 +137,9 @@ class MyRobotSlam(RobotAbstract):
         random_angle = angles[random_index]
         random_distance = distances[random_index]
 
-        safe_distance = random_distance * 0.7
+        safe_distance = random_distance - 30.0
 
         x = pose[0] + safe_distance * np.cos(pose[2] + random_angle)
         y = pose[1] + safe_distance * np.sin(pose[2] + random_angle)
-
+        
         self.current_target = [x, y, 0]

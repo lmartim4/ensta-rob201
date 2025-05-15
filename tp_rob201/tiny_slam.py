@@ -22,17 +22,18 @@ class TinySlam:
 
         sensor_values = lidar.get_sensor_values()
         ray_angles = lidar.get_ray_angles()
+
         max_lidar_range = lidar.max_range
 
-        lidar_valid_points = sensor_values < max_lidar_range
+        lidar_valid_points_mask = sensor_values < max_lidar_range
 
-        filtered_values = sensor_values[lidar_valid_points]
-        filtered_angles = ray_angles[lidar_valid_points]
+        dist_filtred = sensor_values[lidar_valid_points_mask]
+        angles_filtres = ray_angles[lidar_valid_points_mask]
 
         x, y, theta = pose
 
-        x_world = x + filtered_values * np.cos(theta + filtered_angles)
-        y_world = y + filtered_values * np.sin(theta + filtered_angles)
+        x_world = x + dist_filtred * np.cos(theta + angles_filtres)
+        y_world = y + dist_filtred * np.sin(theta + angles_filtres)
 
         map_coords = self.grid.conv_world_to_map(x_world, y_world)
 
@@ -43,18 +44,14 @@ class TinySlam:
             & (map_coords[1] < self.grid.y_max_map)
         )
 
-        # Extract valid coordinates
         valid_x = map_coords[0][valid_mask]
         valid_y = map_coords[1][valid_mask]
 
-        # Convert to integers for indexing
         valid_x = valid_x.astype(int)
         valid_y = valid_y.astype(int)
 
-        # Get log probabilities from occupancy map for valid coordinates
         log_probs = self.grid.occupancy_map[valid_x, valid_y]
 
-        # Compute total score
         score = np.sum(log_probs)
 
         return score
@@ -91,11 +88,13 @@ class TinySlam:
         lidar : placebot object with lidar data
         odom : [x, y, theta] nparray, raw odometry position
         """
-        current_odom_pos_ref = self.odom_pose_ref
         current_correction = self.get_corrected_pose(raw_odom_pose)
         best_score = self._score(lidar, current_correction)
 
-        sigma = [5, 5, 1]
+        print(f"Initial Score {best_score}")
+
+        current_odom_pos_ref = self.odom_pose_ref
+        sigma = [10, 10, 10*(np.pi/180.0)]
         # sigma = [0, 0, 0]
 
         iterations_without_improvement = 0
@@ -114,7 +113,7 @@ class TinySlam:
             else:
                 iterations_without_improvement += 1
 
-        # print(f"odom_pose_ref={self.odom_pose_ref}")
+        print(f"odom_pose_ref={self.odom_pose_ref}")
         return best_score
 
     def update_map(self, lidar, pose):
@@ -133,10 +132,10 @@ class TinySlam:
 
         self.grid.add_map_points(x, y, 2)
 
-        x = pose[0] + (lidar.get_sensor_values() - 10.0) * np.cos(
+        x = pose[0] + (lidar.get_sensor_values() - 30.0) * np.cos(
             pose[2] + lidar.get_ray_angles()
         )
-        y = pose[1] + (lidar.get_sensor_values() - 10.0) * np.sin(
+        y = pose[1] + (lidar.get_sensor_values() - 30.0) * np.sin(
             pose[2] + lidar.get_ray_angles()
         )
 
