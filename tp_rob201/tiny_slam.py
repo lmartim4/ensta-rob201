@@ -90,11 +90,11 @@ class TinySlam:
         """
         current_correction = self.get_corrected_pose(raw_odom_pose)
         best_score = self._score(lidar, current_correction)
-
-        print(f"Initial Score {best_score}")
+        print("==============")
+        print(f"Initial Score: {self.note_sur_20(best_score):.1f}")
 
         current_odom_pos_ref = self.odom_pose_ref
-        sigma = [10, 10, 10*(np.pi/180.0)]
+        sigma = [10, 10, 10 * (np.pi / 180.0)]
         # sigma = [0, 0, 0]
 
         iterations_without_improvement = 0
@@ -103,7 +103,8 @@ class TinySlam:
             offset = np.random.normal(0, sigma, 3)
 
             odom_pose_ref_offset = current_odom_pos_ref + offset
-            new_pose = self.get_corrected_pose(raw_odom_pose, odom_pose_ref_offset)
+            new_pose = self.get_corrected_pose(
+                raw_odom_pose, odom_pose_ref_offset)
             new_score = self._score(lidar, new_pose)
 
             if new_score > best_score:
@@ -145,3 +146,6 @@ class TinySlam:
         self.grid.occupancy_map = np.clip(
             self.grid.occupancy_map, -self.grid.max_grid_value, self.grid.max_grid_value
         )
+
+    def note_sur_20(self, value):
+        return value * 20 / (self.grid.max_grid_value * 360)
