@@ -13,24 +13,9 @@ class Planner:
 
     def __init__(self, occupancy_grid: OccupancyGrid):
         self.grid = occupancy_grid
-
-        # Origin of the odom frame in the map frame
         self.odom_pose_ref = np.array([0, 0, 0])
 
-    def explore_frontiers(self):
-        """Frontier based exploration"""
-        goal = np.array([0, 0, 0])  # frontier to reach for exploration
-        return goal
-
-    def heuristic(self, cell1, cell2):
-        """
-        Calcule la distance euclidienne entre deux cellules.
-        """
-        return np.linalg.norm(np.array(cell1) - np.array(cell2))
-
-    def get_neighbors(self, current_cell):
-        x, y = current_cell
-        directions = np.array(
+        self.directions = np.array(
             [
                 [-1, -1],  # Upper-left
                 [-1, 0],  # Up
@@ -42,7 +27,25 @@ class Planner:
                 [1, 1],  # Lower-right
             ]
         )
-        neighbors = directions + np.array([x, y])
+
+    def reconstruct_path(self, came_from, current):
+        total_path = [current]
+        while current in came_from:
+            current = came_from[current]
+            total_path.insert(0, current)
+        return total_path
+
+    # def heuristic(self, cell1, cell2):
+    #    return np.linalg.norm(np.array(cell1) - np.array(cell2))
+
+    def heuristic(self, cell_1, cell_2):
+        x1, y1 = cell_1
+        x2, y2 = cell_2
+        return np.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
+
+    def get_neighbors(self, current_cell):
+        x, y = current_cell
+        neighbors = self.directions + np.array([x, y])
         valid_mask = (
             (neighbors[:, 0] >= 0)
             & (neighbors[:, 0] < self.grid.x_max_map)
@@ -51,30 +54,12 @@ class Planner:
         )
         return neighbors[valid_mask]
 
-    def reconstruct_path(self, came_from, current):
-        """
-        Reconstruct the path by following parent pointers from goal to start.
-
-        Parameters:
-        - came_from: Dictionary mapping each node to its predecessor
-        - current: Goal node
-
-        Returns:
-        - List of nodes forming the path from start to goal
-        """
-        total_path = [current]
-        while current in came_from:
-            current = came_from[current]
-            total_path.insert(0, current)  # Prepend to path
-        return total_path
-
-    def weight_edge_neighboor(self, current, neighbor):
+    def movement_cost(self, current, neighbor):
         dx = abs(current[0] - neighbor[0])
         dy = abs(current[1] - neighbor[1])
 
         if dx == 1 and dy == 1:
             return 1.414
-
         return 1.0
 
     def plan(self, A, B):
@@ -101,11 +86,11 @@ class Planner:
 
             for neighbor in self.get_neighbors(current):
                 neighbor = tuple(neighbor)
-                # Wall
+
                 if self.grid.occupancy_map[neighbor] > 20:
                     continue
 
-                movement_cost = self.weight_edge_neighboor(current, neighbor)
+                movement_cost = self.movement_cost(current, neighbor)
                 test_g_score = g_score[current] + movement_cost
 
                 if test_g_score < g_score.get(neighbor, float("infinity")):

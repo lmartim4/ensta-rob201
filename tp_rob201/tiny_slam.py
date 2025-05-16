@@ -17,7 +17,8 @@ class TinySlam:
         """
         Computes the sum of log probabilities of laser end points in the map
         lidar : placebot object with lidar data
-        pose : [x, y, theta] nparray, position of the robot to evaluate, in world coordinates
+        pose : [x, y, theta] nparray, position of
+        the robot to evaluate, in world coordinates
         """
 
         sensor_values = lidar.get_sensor_values()
@@ -58,7 +59,8 @@ class TinySlam:
 
     def get_corrected_pose(self, odom_pose, odom_pose_ref=None):
         """
-        Compute corrected pose in map frame from raw odom pose + odom frame pose,
+        Compute corrected pose in map frame
+        from raw odom pose + odom frame pose,
         either given as second param or using the ref from the object
         odom : raw odometry position
         odom_pose_ref : optional, origin of the odom frame if given,
@@ -84,14 +86,15 @@ class TinySlam:
 
     def localise(self, lidar, raw_odom_pose, N=20):
         """
-        Compute the robot position wrt the map, and updates the odometry reference
+        Compute the robot position wrt the map,
+        and updates the odometry reference
         lidar : placebot object with lidar data
         odom : [x, y, theta] nparray, raw odometry position
         """
         current_correction = self.get_corrected_pose(raw_odom_pose)
         best_score = self._score(lidar, current_correction)
         print("==============")
-        print(f"Initial Score: {self.note_sur_20(best_score):.1f}")
+        print(f"Initial Score: {self.score20(best_score):.1f}")
 
         current_odom_pos_ref = self.odom_pose_ref
         sigma = [10, 10, 10 * (np.pi / 180.0)]
@@ -102,14 +105,13 @@ class TinySlam:
         while iterations_without_improvement < N:
             offset = np.random.normal(0, sigma, 3)
 
-            odom_pose_ref_offset = current_odom_pos_ref + offset
-            new_pose = self.get_corrected_pose(
-                raw_odom_pose, odom_pose_ref_offset)
+            ref_offset = current_odom_pos_ref + offset
+            new_pose = self.get_corrected_pose(raw_odom_pose, ref_offset)
             new_score = self._score(lidar, new_pose)
 
             if new_score > best_score:
                 best_score = new_score
-                self.odom_pose_ref = odom_pose_ref_offset
+                self.odom_pose_ref = ref_offset
                 iterations_without_improvement = 0
             else:
                 iterations_without_improvement += 1
@@ -131,7 +133,7 @@ class TinySlam:
             pose[2] + lidar.get_ray_angles()
         )
 
-        self.grid.add_map_points(x, y, 2)
+        self.grid.add_map_points(x, y, 1)
 
         x = pose[0] + (lidar.get_sensor_values() - 30.0) * np.cos(
             pose[2] + lidar.get_ray_angles()
@@ -144,8 +146,8 @@ class TinySlam:
             self.grid.add_value_along_line(pose[0], pose[1], xi, yi, -1)
 
         self.grid.occupancy_map = np.clip(
-            self.grid.occupancy_map, -self.grid.max_grid_value, self.grid.max_grid_value
+            self.grid.occupancy_map, -self.grid.max_value, self.grid.max_value
         )
 
-    def note_sur_20(self, value):
-        return value * 20 / (self.grid.max_grid_value * 360)
+    def score20(self, value):
+        return value * 20 / (self.grid.max_value * 360)

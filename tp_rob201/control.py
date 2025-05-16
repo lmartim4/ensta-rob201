@@ -5,6 +5,10 @@ import random
 import numpy as np
 
 
+def is_stopped(c):
+    return abs(c["forward"]) < 0.0001 and abs(c["rotation"]) < 0.0001
+
+
 def reactive_obst_avoid(lidar):
     """
     Simple obstacle avoidance
@@ -53,7 +57,7 @@ def potential_field_control(lidar, current_pose, goal_pose):
     if rotation_speed > 0.023:
         forward_speed = 0
 
-    if abs(grad_atractive[0]) < 0.00001 and abs(rotation_speed) < 0.00001:
+    if abs(grad_atractive[0]) < 0.0001 and abs(rotation_speed) < 0.0001:
         return {"forward": 0, "rotation": 0}
 
     return {
@@ -83,7 +87,7 @@ def calculate_rotation_speed(grad_r, current_pose, Kv):
 
     # print(f"target: {target_angle*180/np.pi:.2f}° current = {current_pose[2]*180/np.pi:.2f}° error= {angle_error*180/np.pi:.2f}°")
 
-    if np.abs(angle_error) * 180 / np.pi < 1:
+    if np.abs(angle_error) * 180 / np.pi < 5:
         return 0
     else:
         return Kv * (angle_error)

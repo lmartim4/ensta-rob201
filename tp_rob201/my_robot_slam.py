@@ -12,7 +12,7 @@ from place_bot.entities.lidar import LidarParams
 
 from tiny_slam import TinySlam
 
-from control import potential_field_control, reactive_obst_avoid
+from control import potential_field_control, reactive_obst_avoid, is_stopped
 from occupancy_grid import OccupancyGrid
 from planner import Planner
 
@@ -33,13 +33,11 @@ class MyRobotSlam(RobotAbstract):
             odometer_params=odometer_params,
         )
 
-        # step counter to deal with init and display
-        self.current_target = [0, -10, 0]
-        self.counter = 0
-        self.last_rotation = 0
         # Init SLAM object
-        # Here we cheat to get an occupancy grid size that's not too large, by using the
-        # robot's starting position and the maximum map size that we shouldn't know.
+        # Here we cheat to get an occupancy grid size that's not too large,
+        # by using the robot's starting position and the maximum map size
+        # that we shouldn't know.
+
         size_area = (1400, 1000)
         robot_position = (0.0, 0)
         self.occupancy_grid = OccupancyGrid(
@@ -53,34 +51,64 @@ class MyRobotSlam(RobotAbstract):
         self.tiny_slam = TinySlam(self.occupancy_grid)
         self.planner = Planner(self.occupancy_grid)
 
+        self.enable_slam = True
+
         # storage for pose after localization
         self.corrected_pose = np.array([0, 0, 0])
+
+        self.goal_index = 0
+        self.current_path = None
+        self.target = [0, 0, 0]
+        self.tick_count = 0
+        self.last_rotation = 0
+
+    def slam_tick(self):
+        odometer = self.odometer_values()
+
+        if self.enable_slam:
+            lidar = self.lidar()
+            best_score = self.tiny_slam.localise(lidar, odometer)
+
+            print(f"Final Score = {self.tiny_slam.score20(best_score):.1f}")
+
+            self.corrected_pose = self.tiny_slam.get_corrected_pose(odometer)
+
+            if best_score > 16 or self.tick_count < 20:
+                self.tiny_slam.update_map(lidar, self.corrected_pose)
+        else:
+            self.corrected_pose = odometer
+
+    def map_tick(self):
+        self.tick_count += 1
+        if self.tick_count % 10 == 0:
+            trajectory = None
+            if self.current_path is not None and len(self.current_path) > 0:
+                path_points = np.array(self.current_path)
+                world_points = np.array(
+                    [
+                        self.tiny_slam.grid.conv_map_to_world(point[0], point[1])
+                        for point in path_points
+                    ]
+                )
+                trajectory = np.array(
+                    [
+                        world_points[:, 0],  # All x coordinates
+                        world_points[:, 1],  # All y coordinates
+                    ]
+                )
+
+            self.tiny_slam.grid.display_cv(self.corrected_pose, self.target, trajectory)
 
     def control(self):
         """
         Main control function executed at each time step
         """
-        odometer_data = self.odometer_values()
-        lidar = self.lidar()
-        best_score = self.tiny_slam.localise(lidar, odometer_data)
+        self.slam_tick()
+        self.map_tick()
 
-        print(f"Final Score = {self.tiny_slam.note_sur_20(best_score):.1f}")
+        control = self.control_tp2()
+        print(f"F:{control['forward']:.2f} R:{control['rotation']:.2f}")
 
-        self.corrected_pose = self.tiny_slam.get_corrected_pose(odometer_data)
-
-        if best_score > 16 or self.counter < 20:
-            print("Updating Map!")
-            self.tiny_slam.update_map(lidar, self.corrected_pose)
-
-        self.counter += 1
-
-        if self.counter % 10 == 0:
-            self.tiny_slam.grid.display_cv(self.corrected_pose, self.current_target)
-
-        control = self.control_tp5()
-
-        f, r = control["forward"], control["rotation"]
-        print(f"F:{f:.2f} R:{r:.2f}")
         return control
 
     def control_tp1(self):
@@ -89,88 +117,64 @@ class MyRobotSlam(RobotAbstract):
         Control funtion with minimal random motion
         """
 
-        if self.counter > 0:
-            self.counter -= 1
+        if self.tick_count > 0:
+            self.tick_count -= 1
 
             command = {"forward": 0.5, "rotation": self.last_rotation}
         else:
             command = reactive_obst_avoid(self.lidar())
             if command["rotation"] != 0:
                 self.last_rotation = command["rotation"]
-                self.counter = 30
+                self.tick_count = 30
 
         return command
 
     def control_tp2(self):
         """
         Control function for TP2
-        Main control function with full SLAM, random exploration and path planning
+        Main control function with full SLAM,
+        random exploration and path planning
         """
         pose = self.odometer_values()
         pose = self.tiny_slam.get_corrected_pose(pose)
 
         lidar = self.lidar()
 
-        command = potential_field_control(lidar, pose, self.current_target)
+        command = potential_field_control(lidar, pose, self.target)
 
         if command["forward"] == 0.0 and command["rotation"] == 0.0:
-
-            def choose_random_goal(self, pose, lidar):
-                """
-                Choose a random goal based on one of the lidar readings
-                """
-                angles = lidar.get_ray_angles()
-                distances = lidar.get_sensor_values()
-
-                random_index = random.randint(0, len(distances) - 1)
-                random_angle = angles[random_index]
-                random_distance = distances[random_index]
-
-                safe_distance = random_distance - 30.0
-
-                x0, y0, theta0 = pose
-
-                x = x0 + safe_distance * np.cos(theta0 + random_angle)
-                y = y0 + safe_distance * np.sin(theta0 + random_angle)
-
-                self.current_target = [x, y, 0]
-
             self.choose_random_goal(pose, lidar)
-            print(f"Choosing new random goal: {self.current_target[:2]}")
+            print(f"Choosing new random goal: {self.target[:2]}")
 
         return command
 
     def control_tp5(self):
         """
         Control function for TP5
-        Main control function with full SLAM, predefined goals and A* path planning
+        Main control function with full SLAM,
+        predefined goals and A* path planning
         """
         # Define the list of hard-coded goals [x, y, theta]
         predefined_goals = [
-            [100.0, 150.0, 0.0],
             [200.0, 50.0, 0.0],
-            [50.0, 200.0, 0.0],
         ]
 
         # Initialize goal_index and path if they don't exist
-        if not hasattr(self, "goal_index"):
-            self.goal_index = 0
-            self.current_target = predefined_goals[self.goal_index]
-            self.current_path = None
-            self.path_index = 0
+        self.target = predefined_goals[self.goal_index]
+        X_t, Y_t, Theta_t = self.target
+        self.current_path = None
+        self.path_index = 0
 
         # Get current pose and update with SLAM correction
         pose = self.odometer_values()
-        pose = self.tiny_slam.get_corrected_pose(pose)
+        x_c, y_c, theta_c = self.tiny_slam.get_corrected_pose(pose)
 
         # Get lidar data for obstacle detection
         lidar = self.lidar()
 
         # Convert world coordinates to map coordinates
-        current_pos_map = self.occupancy_grid.conv_world_to_map(pose[0], pose[1])
-        target_pos_map_ = self.occupancy_grid.conv_world_to_map(
-            self.current_target[0], self.current_target[1]
-        )
+        current_pos_map = self.occupancy_grid.conv_world_to_map(x_c, y_c)
+        target_pos_map = self.occupancy_grid.conv_world_to_map(X_t, Y_t)
 
         # Plan or replan path if needed
         if (
@@ -179,7 +183,7 @@ class MyRobotSlam(RobotAbstract):
             or self.path_index >= len(self.current_path)
         ):
             # Plan new path using A* planner
-            print(f"Planning path to goal {self.goal_index}: {self.current_target[:2]}")
+            print(f"New goal {self.goal_index}: {self.target[:2]}")
             self.current_path = self.planner.plan(current_pos_map, target_pos_map)
             self.path_index = 0
 
@@ -187,7 +191,7 @@ class MyRobotSlam(RobotAbstract):
             if self.current_path is None or len(self.current_path) == 0:
                 print(f"No path found to goal {self.goal_index}, trying next goal")
                 self.goal_index = (self.goal_index + 1) % len(predefined_goals)
-                self.current_target = predefined_goals[self.goal_index]
+                self.target = predefined_goals[self.goal_index]
                 # Rotate a bit to scan environment
                 return {"forward": 0.0, "rotation": 0.1}
 
@@ -218,17 +222,33 @@ class MyRobotSlam(RobotAbstract):
                 if self.path_index >= len(self.current_path):
                     print(f"Reached goal {self.goal_index}")
                     self.goal_index = (self.goal_index + 1) % len(predefined_goals)
-                    self.current_target = predefined_goals[self.goal_index]
+                    self.target = predefined_goals[self.goal_index]
                     self.current_path = None
 
-            # Safety check - if we're stuck, try to replan
-            if command["forward"] < 0.00001 and abs(command["rotation"]) < 0.00001:
-                print("Potential field control is stuck, replanning...")
-                self.current_path = None
-                # Rotate a bit to scan environment
-                return {"forward": 0.0, "rotation": 0.1}
+            if is_stopped(command):
+                print("Robot seems stuck")
 
             return command
 
         # Fallback - should not reach here
         return {"forward": 0.0, "rotation": 0.1}
+
+    def choose_random_goal(self, pose, lidar):
+        """
+        Choose a random goal based on one of the lidar readings
+        """
+        angles = lidar.get_ray_angles()
+        distances = lidar.get_sensor_values()
+
+        random_index = random.randint(0, len(distances) - 1)
+        random_angle = angles[random_index]
+        random_distance = distances[random_index]
+
+        safe_distance = random_distance - 30.0
+
+        x0, y0, theta0 = pose
+
+        x = x0 + safe_distance * np.cos(theta0 + random_angle)
+        y = y0 + safe_distance * np.sin(theta0 + random_angle)
+
+        self.target = [x, y, 0]

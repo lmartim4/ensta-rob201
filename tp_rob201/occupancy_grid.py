@@ -17,7 +17,7 @@ class OccupancyGrid:
 
     def __init__(self, x_min, x_max, y_min, y_max, resolution):
         # Given : constructor
-        self.max_grid_value = 40 
+        self.max_value = 40
         self.x_min_world = x_min
         self.x_max_world = x_max
         self.y_min_world = y_min
@@ -25,20 +25,23 @@ class OccupancyGrid:
         self.resolution = resolution
 
         self.x_max_map, self.y_max_map = self.conv_world_to_map(
-            self.x_max_world, self.y_max_world)
+            self.x_max_world, self.y_max_world
+        )
 
-        self.occupancy_map = np.zeros(
-            (int(self.x_max_map), int(self.y_max_map)))
+        self.occupancy_map = np.zeros((int(self.x_max_map), int(self.y_max_map)))
 
         if VIDEO_OUT:
-            self.cv_out = cv2.VideoWriter('rob201.avi',
-                                          cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'),
-                                          7,
-                                          (self.x_max_map, self.y_max_map))
+            self.cv_out = cv2.VideoWriter(
+                "rob201.avi",
+                cv2.VideoWriter_fourcc("M", "J", "P", "G"),
+                7,
+                (self.x_max_map, self.y_max_map),
+            )
 
     def conv_world_to_map(self, x_world, y_world):
         """
-        Convert from world coordinates to map coordinates (i.e. cell index in the grid map)
+        Convert from world coordinates to map coordinates
+        (i.e. cell index in the grid map)
         x_world, y_world : list of x and y coordinates in m
         """
 
@@ -81,7 +84,12 @@ class OccupancyGrid:
         x_start, y_start = self.conv_world_to_map(x_0, y_0)
         x_end, y_end = self.conv_world_to_map(x_1, y_1)
 
-        if x_start < 0 or x_start >= self.x_max_map or y_start < 0 or y_start >= self.y_max_map:
+        if (
+            x_start < 0
+            or x_start >= self.x_max_map
+            or y_start < 0
+            or y_start >= self.y_max_map
+        ):
             return
 
         if x_end < 0 or x_end >= self.x_max_map or y_end < 0 or y_end >= self.y_max_map:
@@ -126,8 +134,10 @@ class OccupancyGrid:
 
         x_px, y_px = self.conv_world_to_map(points_x, points_y)
 
-        select = np.logical_and(np.logical_and(x_px >= 0, x_px < self.x_max_map),
-                                np.logical_and(y_px >= 0, y_px < self.y_max_map))
+        select = np.logical_and(
+            np.logical_and(x_px >= 0, x_px < self.x_max_map),
+            np.logical_and(y_px >= 0, y_px < self.y_max_map),
+        )
         x_px = x_px[select]
         y_px = y_px[select]
 
@@ -141,21 +151,36 @@ class OccupancyGrid:
         """
 
         plt.cla()
-        plt.imshow(self.occupancy_map.T, origin='lower',
-                   extent=[self.x_min_world, self.x_max_world, self.y_min_world, self.y_max_world])
+        plt.imshow(
+            self.occupancy_map.T,
+            origin="lower",
+            extent=[
+                self.x_min_world,
+                self.x_max_world,
+                self.y_min_world,
+                self.y_max_world,
+            ],
+        )
         plt.clim(-4, 4)
         plt.axis("equal")
 
         if traj is not None:
-            plt.plot(traj[0, :], traj[1, :], 2, 'w')
+            plt.plot(traj[0, :], traj[1, :], 2, "w")
 
         if goal is not None:
-            plt.scatter(goal[0], goal[1], 4, 'white')
+            plt.scatter(goal[0], goal[1], 4, "white")
 
         delta_x = np.cos(robot_pose[2]) * 10
         delta_y = np.sin(robot_pose[2]) * 10
-        plt.arrow(robot_pose[0], robot_pose[1], delta_x, delta_y,
-                  color='red', head_width=5, head_length=10, )
+        plt.arrow(
+            robot_pose[0],
+            robot_pose[1],
+            delta_x,
+            delta_y,
+            color="red",
+            head_width=5,
+            head_length=10,
+        )
 
         # plt.show()
         plt.pause(0.001)
@@ -177,7 +202,9 @@ class OccupancyGrid:
             traj_map_x, traj_map_y = self.conv_world_to_map(traj[0, :], traj[1, :])
             traj_map = np.vstack((traj_map_x, self.y_max_map - traj_map_y))
             for i in range(len(traj_map_x) - 1):
-                cv2.line(img_color, traj_map[:, i], traj_map[:, i + 1], (180, 180, 180), 2)
+                cv2.line(
+                    img_color, traj_map[:, i], traj_map[:, i + 1], (180, 180, 180), 2
+                )
 
         if goal is not None:
             pt_x, pt_y = self.conv_world_to_map(goal[0], goal[1])
@@ -194,8 +221,7 @@ class OccupancyGrid:
         # print("robot_pose", robot_pose)
         pt1 = (int(pt1_x), self.y_max_map - int(pt1_y))
         pt2 = (int(pt2_x), self.y_max_map - int(pt2_y))
-        cv2.arrowedLine(img=img_color, pt1=pt1, pt2=pt2,
-                        color=(0, 0, 255), thickness=2)
+        cv2.arrowedLine(img=img_color, pt1=pt1, pt2=pt2, color=(0, 0, 255), thickness=2)
         cv2.imshow("map slam", img_color)
         if VIDEO_OUT:
             self.cv_out.write(img_color)
@@ -208,20 +234,32 @@ class OccupancyGrid:
         filename : base name (without extension) of file on disk
         """
 
-        plt.imshow(self.occupancy_map.T, origin='lower',
-                   extent=[self.x_min_world, self.x_max_world,
-                           self.y_min_world, self.y_max_world])
+        plt.imshow(
+            self.occupancy_map.T,
+            origin="lower",
+            extent=[
+                self.x_min_world,
+                self.x_max_world,
+                self.y_min_world,
+                self.y_max_world,
+            ],
+        )
         plt.clim(-4, 4)
         plt.axis("equal")
-        plt.savefig(filename + '.png')
+        plt.savefig(filename + ".png")
 
         with open(filename + ".p", "wb") as fid:
-            pickle.dump({'occupancy_map': self.occupancy_map,
-                         'resolution': self.resolution,
-                         'x_min_world': self.x_min_world,
-                         'x_max_world': self.x_max_world,
-                         'y_min_world': self.y_min_world,
-                         'y_max_world': self.y_max_world}, fid)
+            pickle.dump(
+                {
+                    "occupancy_map": self.occupancy_map,
+                    "resolution": self.resolution,
+                    "x_min_world": self.x_min_world,
+                    "x_max_world": self.x_max_world,
+                    "y_min_world": self.y_min_world,
+                    "y_max_world": self.y_max_world,
+                },
+                fid,
+            )
 
         if VIDEO_OUT:
             self.cv_out.release()
