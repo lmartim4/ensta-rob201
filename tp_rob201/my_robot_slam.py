@@ -12,7 +12,7 @@ from place_bot.entities.lidar import LidarParams
 
 from tiny_slam import TinySlam
 
-from control import potential_field_control, reactive_obst_avoid, is_stopped
+from control import potential_field_control, reactive_obst_avoid, has_arrived
 from occupancy_grid import OccupancyGrid
 from planner import Planner
 
@@ -86,7 +86,8 @@ class MyRobotSlam(RobotAbstract):
                 path_points = np.array(self.current_path)
                 world_points = np.array(
                     [
-                        self.tiny_slam.grid.conv_map_to_world(point[0], point[1])
+                        self.tiny_slam.grid.conv_map_to_world(
+                            point[0], point[1])
                         for point in path_points
                     ]
                 )
@@ -97,7 +98,8 @@ class MyRobotSlam(RobotAbstract):
                     ]
                 )
 
-            self.tiny_slam.grid.display_cv(self.corrected_pose, self.target, trajectory)
+            self.tiny_slam.grid.display_cv(
+                self.corrected_pose, self.target, trajectory)
 
     def control(self):
         """
@@ -107,9 +109,8 @@ class MyRobotSlam(RobotAbstract):
         self.map_tick()
 
         command = self.control_tp2()
-        print(f"F:{command['forward']:.2f} R:{command['rotation']:.2f} - ")
-
-        print(f"target: {self.target}")
+        # print(f"F:{command['forward']:.2f} R:{command['rotation']:.2f} - ")
+        # print(f"target: {self.target}")
         return command
 
     def control_tp1(self):
@@ -138,12 +139,11 @@ class MyRobotSlam(RobotAbstract):
         """
         pose = self.odometer_values()
         pose = self.tiny_slam.get_corrected_pose(pose)
-
         lidar = self.lidar()
 
         command = potential_field_control(lidar, pose, self.target)
 
-        if command["forward"] == 0.0 and command["rotation"] == 0.0:
+        if has_arrived(pose, self.target):
             self.move_to_next_waypoint()
             print(f"Moving to next waypoint: {self.target[:2]}")
         return command
@@ -184,12 +184,12 @@ class MyRobotSlam(RobotAbstract):
         ):
             # Plan new path using A* planner
             print(f"New goal {self.goal_index}: {self.target[:2]}")
-            self.current_path = self.planner.plan(current_pos_map, target_pos_map)
+            self.current_path = self.planner.plan(
+                current_pos_map, target_pos_map)
             self.path_index = 0
 
             # If no path is found, try the next goal
             if self.current_path is None or len(self.current_path) == 0:
-                print(f"No path found to goal {self.goal_index}, trying next goal")
                 self.goal_index = (self.goal_index + 1) % len(predefined_goals)
                 self.target = predefined_goals[self.goal_index]
                 # Rotate a bit to scan environment
@@ -216,16 +216,16 @@ class MyRobotSlam(RobotAbstract):
 
             if dist_to_waypoint < 10.0:  # Close enough to current waypoint
                 self.path_index += 1
-                print(f"Reached waypoint {self.path_index}/{len(self.current_path)}")
 
                 # If we've reached the final waypoint (the goal)
                 if self.path_index >= len(self.current_path):
                     print(f"Reached goal {self.goal_index}")
-                    self.goal_index = (self.goal_index + 1) % len(predefined_goals)
+                    self.goal_index = (self.goal_index +
+                                       1) % len(predefined_goals)
                     self.target = predefined_goals[self.goal_index]
                     self.current_path = None
 
-            if is_stopped(command):
+            if has_arrived(pose, self.target):
                 print("Robot seems stuck")
 
             return command
@@ -269,8 +269,10 @@ class MyRobotSlam(RobotAbstract):
                 (250, -100, 0),
                 (250, -50, 0),
                 (0, -50, 0),
-                (0, 170, 0),
-                (-400, 170, 0),
+                (0, 180, 0),
+                (-360, 180, 0),
+                (-360, -100, 0),
+                (0, 0, 0),
                 (0.0, 0.0, 0.0),  # Return to starting position
             ]
             self.current_waypoint_index = 0

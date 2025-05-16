@@ -5,8 +5,8 @@ import random
 import numpy as np
 
 
-def is_stopped(c):
-    return abs(c["forward"]) < 0.0001 and abs(c["rotation"]) < 0.0001
+def has_arrived(pose, goal, dlim=20):
+    return np.linalg.norm(pose - goal) < dlim
 
 
 def reactive_obst_avoid(lidar):
@@ -14,8 +14,6 @@ def reactive_obst_avoid(lidar):
     Simple obstacle avoidance
     lidar : placebot object with lidar data
     """
-    # TODO for TP1
-
     laser_dist = lidar.get_sensor_values()
 
     threshold_distance = 30
@@ -45,32 +43,36 @@ def potential_field_control(lidar, current_pose, goal_pose):
     """
 
     grad_atractive = calculate_atractive_grad(
-        current_pose, goal_pose, d_lim=30, K_goal=0.25
+        current_pose, goal_pose, d_lim=20, K_goal=0.2
     )
-    grad_repulsive = calculate_repulsive_grad(lidar, current_pose, k_obs=20, d_safe=70)
+
+    grad_repulsive = calculate_repulsive_grad(
+        lidar, current_pose, k_obs=100, d_safe=30)
 
     grad_r = grad_atractive - grad_repulsive
+    print(grad_r, " ", grad_atractive, " ", grad_repulsive)
+    forward_speed = np.linalg.norm(grad_r)
 
-    forward_speed = np.sqrt(grad_r[0] ** 2 + grad_r[1] ** 2)
-    rotation_speed = calculate_rotation_speed(grad_r, current_pose, Kv=0.23)
+    if forward_speed < 0.001:
+        rotation_speed = 0
+    else:
+        rotation_speed = calculate_rotation_speed(grad_r, current_pose, Kv=0.3)
 
-    if rotation_speed > 0.023:
+    if rotation_speed > 0.03:
         forward_speed = 0
 
-    if abs(grad_atractive[0]) < 0.0001 and abs(rotation_speed) < 0.0001:
+    if abs(grad_atractive[0]) < 0.001 and abs(rotation_speed) < 0.001:
         return {"forward": 0, "rotation": 0}
 
     return {
-        "forward": np.clip(forward_speed, a_min=-1, a_max=1),
-        "rotation": np.clip(rotation_speed, a_min=-1, a_max=1),
+        "forward": np.clip(forward_speed, a_min=-0.4, a_max=0.4),
+        "rotation": np.clip(rotation_speed, a_min=-0.4, a_max=0.4),
     }
 
 
 def calculate_atractive_grad(current_pose, goal_pose, d_lim, K_goal):
     diff = goal_pose - current_pose
-    dist = np.sqrt(diff[0] ** 2 + diff[1] ** 2)
-
-    # print(f"error={dist} => goal={goal_pose[:2]} , current={current_pose[:2]}")
+    dist = np.linalg.norm(diff)
 
     if dist <= d_lim:
         grad_f = K_goal * diff / d_lim
@@ -84,8 +86,8 @@ def calculate_atractive_grad(current_pose, goal_pose, d_lim, K_goal):
 def calculate_rotation_speed(grad_r, current_pose, Kv):
     target_angle = np.atan2(grad_r[1], grad_r[0])
     angle_error = target_angle - current_pose[2]
-
-    # print(f"target: {target_angle*180/np.pi:.2f}° current = {current_pose[2]*180/np.pi:.2f}° error= {angle_error*180/np.pi:.2f}°")
+    print("angle_error: ", angle_error)
+    angle_error = np.arctan2(np.sin(angle_error), np.cos(angle_error))
 
     if np.abs(angle_error) * 180 / np.pi < 5:
         return 0
