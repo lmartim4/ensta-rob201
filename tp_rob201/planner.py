@@ -35,13 +35,8 @@ class Planner:
             total_path.insert(0, current)
         return total_path
 
-    # def heuristic(self, cell1, cell2):
-    #    return np.linalg.norm(np.array(cell1) - np.array(cell2))
-
-    def heuristic(self, cell_1, cell_2):
-        x1, y1 = cell_1
-        x2, y2 = cell_2
-        return np.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
+    def heuristic(self, cell1, cell2):
+        return np.linalg.norm(np.array(cell1) - np.array(cell2))
 
     def get_neighbors(self, current_cell):
         x, y = current_cell
@@ -87,11 +82,8 @@ class Planner:
             for neighbor in self.get_neighbors(current):
                 neighbor = tuple(neighbor)
 
-                if self.grid.occupancy_map[neighbor] > 20:
-                    continue
-
-                movement_cost = self.movement_cost(current, neighbor)
-                test_g_score = g_score[current] + movement_cost
+                d = self.movement_cost(current, neighbor)
+                test_g_score = g_score[current] + d
 
                 if test_g_score < g_score.get(neighbor, float("infinity")):
                     came_from[neighbor] = current

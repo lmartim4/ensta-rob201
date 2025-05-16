@@ -106,7 +106,7 @@ class MyRobotSlam(RobotAbstract):
         self.slam_tick()
         self.map_tick()
 
-        control = self.control_tp2()
+        control = self.control_tp5()
         print(f"F:{control['forward']:.2f} R:{control['rotation']:.2f}")
 
         return control
