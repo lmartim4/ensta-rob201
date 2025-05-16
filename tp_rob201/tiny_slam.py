@@ -135,10 +135,10 @@ class TinySlam:
 
         self.grid.add_map_points(x, y, 1)
 
-        x = pose[0] + (lidar.get_sensor_values() - 30.0) * np.cos(
+        x = pose[0] + (lidar.get_sensor_values() - 10.0) * np.cos(
             pose[2] + lidar.get_ray_angles()
         )
-        y = pose[1] + (lidar.get_sensor_values() - 30.0) * np.sin(
+        y = pose[1] + (lidar.get_sensor_values() - 10.0) * np.sin(
             pose[2] + lidar.get_ray_angles()
         )
 

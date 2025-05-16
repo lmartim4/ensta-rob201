@@ -106,10 +106,11 @@ class MyRobotSlam(RobotAbstract):
         self.slam_tick()
         self.map_tick()
 
-        control = self.control_tp5()
-        print(f"F:{control['forward']:.2f} R:{control['rotation']:.2f}")
+        command = self.control_tp2()
+        print(f"F:{command['forward']:.2f} R:{command['rotation']:.2f} - ")
 
-        return control
+        print(f"target: {self.target}")
+        return command
 
     def control_tp1(self):
         """
@@ -143,9 +144,8 @@ class MyRobotSlam(RobotAbstract):
         command = potential_field_control(lidar, pose, self.target)
 
         if command["forward"] == 0.0 and command["rotation"] == 0.0:
-            self.choose_random_goal(pose, lidar)
-            print(f"Choosing new random goal: {self.target[:2]}")
-
+            self.move_to_next_waypoint()
+            print(f"Moving to next waypoint: {self.target[:2]}")
         return command
 
     def control_tp5(self):
@@ -252,3 +252,33 @@ class MyRobotSlam(RobotAbstract):
         y = y0 + safe_distance * np.sin(theta0 + random_angle)
 
         self.target = [x, y, 0]
+
+    def move_to_next_waypoint(self):
+        """
+        Select the next waypoint from the predefined list
+        """
+        # If no waypoints list exists yet, initialize it
+        if not hasattr(self, "waypoints") or not self.waypoints:
+            # Define list of waypoints as (x, y, theta) coordinates
+            self.waypoints = [
+                (200.0, 200.0, 0.0),
+                (300.0, 200.0, 0.0),
+                (450.0, 270.0, 0.0),
+                (450.0, -100.0, 0.0),
+                (450.0, -300.0, 0.0),
+                (250, -100, 0),
+                (250, -50, 0),
+                (0, -50, 0),
+                (0, 170, 0),
+                (-400, 170, 0),
+                (0.0, 0.0, 0.0),  # Return to starting position
+            ]
+            self.current_waypoint_index = 0
+        else:
+            # Move to the next waypoint
+            self.current_waypoint_index = (self.current_waypoint_index + 1) % len(
+                self.waypoints
+            )
+
+        # Set the target to the next waypoint
+        self.target = self.waypoints[self.current_waypoint_index]
