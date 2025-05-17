@@ -1,5 +1,6 @@
 """A simple robotics navigation code including SLAM, exploration, planning"""
 
+import pickle
 import numpy as np
 from occupancy_grid import OccupancyGrid
 from place_bot.entities.lidar import Lidar
@@ -95,9 +96,8 @@ class TinySlam:
         current_correction = self.get_corrected_pose(raw_odom_pose)
         best_score = self._score(lidar, current_correction)
         initial_score = best_score
-
         current_odom_pos_ref = self.odom_pose_ref
-        sigma = [1.5, 1.5, 0.3 * (np.pi / 180.0)]
+        sigma = [1.5, 1.5, 0.4 * (np.pi / 180.0)]
 
         iterations_without_improvement = 0
         iterations_count = 0
@@ -120,8 +120,8 @@ class TinySlam:
         iterations_count -= N
         x, y, t = self.odom_pose_ref
 
-        print(f"Score : {initial_score} -> {best_score}")
-        print(f"odom_ref = [{x:.1f}, {y:.1f}, {t:.1f}] : {iterations_count}")
+        #print(f"Score : {initial_score} -> {best_score}")
+        #print(f"odom_ref = [{x:.1f}, {y:.1f}, {t:.1f}] : {iterations_count}")
 
         return best_score
 

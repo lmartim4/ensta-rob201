@@ -10,10 +10,6 @@ def has_arrived(pose, goal, dlim=20):
 
 
 def reactive_obst_avoid(lidar):
-    """
-    Simple obstacle avoidance
-    lidar : placebot object with lidar data
-    """
     laser_dist = lidar.get_sensor_values()
 
     threshold_distance = 30
@@ -37,17 +33,19 @@ def potential_field_control(lidar, current_pose, goal_pose):
     lidar : placebot object with lidar data
     current_pose : [x, y, theta] nparray, current pose in odom or world frame
     goal_pose : [x, y, theta] nparray, target pose in odom or world frame
-    Notes: As lidar and odom are local only data, goal and gradient will be defined either in
-    robot (x,y) frame (centered on robot, x forward, y on left) or in odom (centered / aligned
+    Notes: As lidar and odom are local only data, goal and gradient will
+    be defined either in
+    robot (x,y) frame (centered on robot, x forward, y on left) or in odom
+    (centered / aligned
     on initial pose, x forward, y on left)
     """
 
     grad_atractive = calculate_atractive_grad(
-        current_pose, goal_pose, d_lim=10, K_goal=0.5
+        current_pose, goal_pose, d_lim=30, K_goal=0.6
     )
 
     grad_repulsive = calculate_repulsive_grad(
-        lidar, current_pose, k_obs=100, d_safe=30)
+        lidar, current_pose, k_obs=0, d_safe=30)
 
     grad_r = grad_atractive - grad_repulsive
 
@@ -58,9 +56,9 @@ def potential_field_control(lidar, current_pose, goal_pose):
     if forward_speed < 0.001:
         rotation_speed = 0
     else:
-        rotation_speed = calculate_rotation_speed(grad_r, current_pose, Kv=0.2)
+        rotation_speed = calculate_rotation_speed(grad_r, current_pose, Kv=0.33)
 
-    if rotation_speed > 0.03:
+    if rotation_speed > 0.01:
         forward_speed = 0
 
     if abs(grad_atractive[0]) < 0.001 and abs(rotation_speed) < 0.001:
@@ -78,6 +76,7 @@ def calculate_atractive_grad(current_pose, goal_pose, d_lim, K_goal):
 
     if dist <= d_lim:
         grad_f = K_goal * diff / d_lim
+        return grad_f
         return np.array([0, 0, 0])
     else:
         grad_f = K_goal * (diff) / dist

@@ -58,34 +58,39 @@ class Planner:
         return 1.0
 
     def plan(self, A, B):
-        start = tuple(A)
-        goal = tuple(B)
+        start = tuple(self.grid.conv_world_to_map(A[0], A[1]))
+        goal = tuple(self.grid.conv_world_to_map(B[0], B[1]))
 
         open_set = []
-
-        in_open_set = set([start])
-
         came_from = {}
 
         g_score = {start: 0}
         f_score = {start: self.heuristic(start, goal)}
 
         heapq.heappush(open_set, (f_score[start], start))
-
+        in_open_set = set([start])
+        
+        # Store the direction we came from for each node (used to calculate angles)
+        direction_from = {}
+        
         while open_set:
             _, current = heapq.heappop(open_set)
             in_open_set.remove(current)
-
+            
             if current == goal:
-                return self.reconstruct_path(came_from, current)
-
+                return self.reconstruct_path_with_angles(came_from, direction_from, current, A[2])
+            
             for neighbor in self.get_neighbors(current):
                 neighbor = tuple(neighbor)
-
                 d = self.movement_cost(current, neighbor)
                 test_g_score = g_score[current] + d
 
+                if self.grid.occupancy_map[neighbor[0], neighbor[1]] > 15:
+                    continue
+                
                 if test_g_score < g_score.get(neighbor, float("infinity")):
+                    direction = (neighbor[0] - current[0], neighbor[1] - current[1])
+                    direction_from[neighbor] = direction
                     came_from[neighbor] = current
                     g_score[neighbor] = test_g_score
                     f_score[neighbor] = test_g_score + self.heuristic(neighbor, goal)
@@ -93,5 +98,37 @@ class Planner:
                     if neighbor not in in_open_set:
                         heapq.heappush(open_set, (f_score[neighbor], neighbor))
                         in_open_set.add(neighbor)
-
+                                
         return None
+    
+    def reconstruct_path_with_angles(self, came_from, direction_from, current, start_angle):
+        path = []
+        
+        while current in came_from:
+            x_world, y_world = self.grid.conv_map_to_world(current[0], current[1])
+            
+            if current in direction_from:
+                dx, dy = direction_from[current]
+                
+                angle = np.arctan2(dy, dx)
+                
+                path.append([x_world, y_world, angle])
+            else:
+                if path:
+                    angle = path[-1][2]
+                else:
+                    prev = came_from[current]
+                    dx = current[0] - prev[0]
+                    dy = current[1] - prev[1]
+                    angle = np.arctan2(dy, dx)
+                
+                path.append([x_world, y_world, angle])
+            
+            current = came_from[current]
+        
+        x_world, y_world = self.grid.conv_map_to_world(current[0], current[1])
+        
+        path.append([x_world, y_world, start_angle])
+        path.reverse()
+        
+        return path

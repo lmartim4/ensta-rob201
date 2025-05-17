@@ -15,8 +15,10 @@ if __name__ == "__main__":
     odometer_params = OdometerParams()
     use_shaders = True
 
-    my_robot = MyRobotSlam(lidar_params=lidar_params,
-                           odometer_params=odometer_params)
+    my_robot = MyRobotSlam(
+        lidar_params=lidar_params,
+        odometer_params=odometer_params,
+    )
     my_world = MyWorld(robot=my_robot, use_shaders=use_shaders)
     simulator = Simulator(the_world=my_world, use_keyboard=False)
 

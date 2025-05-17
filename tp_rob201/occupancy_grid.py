@@ -28,7 +28,8 @@ class OccupancyGrid:
             self.x_max_world, self.y_max_world
         )
 
-        self.occupancy_map = np.zeros((int(self.x_max_map), int(self.y_max_map)))
+        self.occupancy_map = np.zeros(
+            (int(self.x_max_map), int(self.y_max_map)))
 
         if VIDEO_OUT:
             self.cv_out = cv2.VideoWriter(
@@ -199,11 +200,13 @@ class OccupancyGrid:
         img_color = cv2.applyColorMap(src=img, colormap=cv2.COLORMAP_JET)
 
         if traj is not None:
-            traj_map_x, traj_map_y = self.conv_world_to_map(traj[0, :], traj[1, :])
+            traj_map_x, traj_map_y = self.conv_world_to_map(
+                traj[0, :], traj[1, :])
             traj_map = np.vstack((traj_map_x, self.y_max_map - traj_map_y))
             for i in range(len(traj_map_x) - 1):
                 cv2.line(
-                    img_color, traj_map[:, i], traj_map[:, i + 1], (180, 180, 180), 2
+                    img_color, traj_map[:, i], traj_map[:,
+                                                        i + 1], (180, 180, 180), 2
                 )
 
         if goal is not None:
@@ -221,7 +224,8 @@ class OccupancyGrid:
         # print("robot_pose", robot_pose)
         pt1 = (int(pt1_x), self.y_max_map - int(pt1_y))
         pt2 = (int(pt2_x), self.y_max_map - int(pt2_y))
-        cv2.arrowedLine(img=img_color, pt1=pt1, pt2=pt2, color=(0, 0, 255), thickness=2)
+        cv2.arrowedLine(img=img_color, pt1=pt1, pt2=pt2,
+                        color=(0, 0, 255), thickness=2)
         cv2.imshow("map slam", img_color)
         if VIDEO_OUT:
             self.cv_out.write(img_color)
@@ -270,3 +274,92 @@ class OccupancyGrid:
         filename : base name (without extension) of file on disk
         """
         # TODO
+        #
+
+    def save_state(self, filename):
+        """
+        Save the complete state of the occupancy grid to a pickle file
+
+        Parameters:
+        filename : str
+            Base name (without extension) of file on disk
+        """
+        with open(filename + ".p", "wb") as fid:
+            pickle.dump(
+                {
+                    "occupancy_map": self.occupancy_map,
+                    "resolution": self.resolution,
+                    "x_min_world": self.x_min_world,
+                    "x_max_world": self.x_max_world,
+                    "y_min_world": self.y_min_world,
+                    "y_max_world": self.y_max_world,
+                    "max_value": self.max_value,
+                    "x_max_map": self.x_max_map,
+                    "y_max_map": self.y_max_map,
+                },
+                fid,
+            )
+        print(f"Occupancy grid state saved to {filename}.p")
+
+    def load_state(self, filename):
+        """
+        Load the complete state of the occupancy grid from a pickle file
+
+        Parameters:
+        filename : str
+            Base name (without extension) of file on disk
+        """
+        with open(filename + ".p", "rb") as fid:
+            data = pickle.load(fid)
+
+        # Update all attributes from the loaded data
+        self.occupancy_map = data["occupancy_map"]
+        self.resolution = data["resolution"]
+        self.x_min_world = data["x_min_world"]
+        self.x_max_world = data["x_max_world"]
+        self.y_min_world = data["y_min_world"]
+        self.y_max_world = data["y_max_world"]
+
+        # If these attributes are in the saved data, load them too
+        if "max_value" in data:
+            self.max_value = data["max_value"]
+        if "x_max_map" in data and "y_max_map" in data:
+            self.x_max_map = data["x_max_map"]
+            self.y_max_map = data["y_max_map"]
+        else:
+            # Recalculate if not in the saved data
+            self.x_max_map, self.y_max_map = self.conv_world_to_map(
+                self.x_max_world, self.y_max_world
+            )
+
+        print(f"Occupancy grid state loaded from {filename}.p")
+
+    def inflate_obstacles(self, radius, threshold=20):
+        original_map = self.occupancy_map.copy()
+        
+        radius_cells = int(radius / self.resolution)
+        
+        obstacle_indices = np.where(original_map > threshold)
+        
+        y_indices, x_indices = np.ogrid[-radius_cells:radius_cells+1, -radius_cells:radius_cells+1]
+        circle = x_indices**2 + y_indices**2 <= radius_cells**2
+        
+        print(f"Inflating {len(obstacle_indices[0])} obstacle cells with radius {radius_cells} cells")
+        
+        for i in range(len(obstacle_indices[0])):
+            x, y = obstacle_indices[0][i], obstacle_indices[1][i]
+            
+            x_min = max(0, x - radius_cells)
+            x_max = min(self.x_max_map - 1, x + radius_cells)
+            y_min = max(0, y - radius_cells)
+            y_max = min(self.y_max_map - 1, y + radius_cells)
+            
+            circle_x_min = max(0, radius_cells - x)
+            circle_x_max = circle_x_min + (x_max - x_min)
+            circle_y_min = max(0, radius_cells - y)
+            circle_y_max = circle_y_min + (y_max - y_min)
+            
+            circle_mask = circle[circle_y_min:circle_y_max+1, circle_x_min:circle_x_max+1]
+            self.occupancy_map[x_min:x_max+1, y_min:y_max+1][circle_mask] = original_map[x, y]
+        
+        print("Obstacle inflation completed")
