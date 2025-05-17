@@ -51,34 +51,50 @@ class MyRobotSlam(RobotAbstract):
         self.tiny_slam = TinySlam(self.occupancy_grid)
         self.planner = Planner(self.occupancy_grid)
 
-        self.enable_slam = True
-
         # storage for pose after localization
-        self.corrected_pose = np.array([0, 0, 0])
+        self.corrected_pose_in_map = np.array([0, 0, 0])
 
-        self.goal_index = 0
+        self.current_waypoint_index = 0
+        self.waypoints = [
+            (200.0, 180.0, 0.0),
+            (300.0, 200.0, 0.0),
+            (450.0, 270.0, 0.0),
+            (450.0, -100.0, 0.0),
+            (450.0, -300.0, 0.0),
+            (300, -100, 0),
+            (300, -70, 0),
+            (0, -70, 0),
+            (0, 180, 0),
+            (-310, 180, 0),
+            (-300, -70, 0),
+            (-380, -60, 0),
+            (-410, 100, 0),
+            # After this point it should use A* to go somewhere else.
+        ]
+
+        # Set this target so control algorithms will try to reach it.
+        self.target = self.waypoints[0]
+
+        # Store path here to display on map later.
         self.current_path = None
-        self.target = [0, 0, 0]
+
+        # Used to know if we are at the start of the simulation.
+        # We should know to update the mapwith bad scores
         self.tick_count = 0
+
+        # Legacy variable to TP1
         self.last_rotation = 0
 
     def slam_tick(self):
-        odometer = self.odometer_values()
+        odometer_pose = self.odometer_values()
+        lidar = self.lidar()
+        best_score = self.tiny_slam.localise(lidar, odometer_pose)
 
-        if self.enable_slam:
-            lidar = self.lidar()
-            best_score = self.tiny_slam.localise(lidar, odometer)
-            # best_score = self.tiny_slam.score20(best_score)
+        self.corrected_pose_in_map = self.tiny_slam.get_corrected_pose(
+            odometer_pose)
 
-            print(f"Final Score = {best_score:.1f}")
-
-            self.corrected_pose = self.tiny_slam.get_corrected_pose(odometer)
-
-            if best_score > 5000 or self.tick_count < 50:
-                # print("Tick = ", self.tick_count)
-                self.tiny_slam.update_map(lidar, self.corrected_pose)
-        else:
-            self.corrected_pose = odometer
+        if best_score > 5000 or self.tick_count < 50:
+            self.tiny_slam.update_map(lidar, self.corrected_pose_in_map)
 
     def map_tick(self):
         self.tick_count += 1
@@ -101,7 +117,8 @@ class MyRobotSlam(RobotAbstract):
                 )
 
             self.tiny_slam.grid.display_cv(
-                self.corrected_pose, self.target, trajectory)
+                self.corrected_pose_in_map, self.target, trajectory
+            )
 
     def control(self):
         """
@@ -132,21 +149,18 @@ class MyRobotSlam(RobotAbstract):
         return command
 
     def control_tp2(self):
-        """
-        Control function for TP2
-        Main control function with full SLAM,
-        random exploration and path planning
-        """
-        pose = self.odometer_values()
-        pose = self.tiny_slam.get_corrected_pose(pose)
-        lidar = self.lidar()
-
-        command = potential_field_control(lidar, pose, self.target)
+        pose = self.tiny_slam.get_corrected_pose(self.odometer_values())
 
         if has_arrived(pose, self.target):
             self.next_waypoint()
-            print(f"Moving to next waypoint: {self.target[:2]}")
-        return command
+
+        return potential_field_control(self.lidar(), pose, self.target)
+
+    def next_waypoint(self):
+        self.current_waypoint_index = (self.current_waypoint_index + 1) % len(
+            self.waypoints
+        )
+        self.target = self.waypoints[self.current_waypoint_index]
 
     def choose_random_goal(self, pose, lidar):
         """
@@ -167,37 +181,3 @@ class MyRobotSlam(RobotAbstract):
         y = y0 + safe_distance * np.sin(theta0 + random_angle)
 
         self.target = [x, y, 0]
-
-    def next_waypoint(self):
-        """
-        Select the next waypoint from the predefined list
-        """
-        # If no waypoints list exists yet, initialize it
-        if not hasattr(self, "waypoints") or not self.waypoints:
-            # Define list of waypoints as (x, y, theta) coordinates
-            self.waypoints = [
-                (200.0, 200.0, 0.0),
-                (300.0, 200.0, 0.0),
-                (450.0, 270.0, 0.0),
-                (450.0, -100.0, 0.0),
-                (450.0, -300.0, 0.0),
-                (250, -100, 0),
-                (250, -70, 0),
-                (0, -70, 0),
-                (0, 180, 0),
-                (-340, 170, 0),
-                (-360, -80, 0),
-                (-410, -80, 0),
-                (-440, 120, 0),
-                # After this point it should use A* to go somewhere else.
-                # (0.0, 0.0, 0.0),  # Return to starting position
-            ]
-            self.current_waypoint_index = 0
-        else:
-            # Move to the next waypoint
-            self.current_waypoint_index = (self.current_waypoint_index + 1) % len(
-                self.waypoints
-            )
-
-        # Set the target to the next waypoint
-        self.target = self.waypoints[self.current_waypoint_index]

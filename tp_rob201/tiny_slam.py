@@ -84,7 +84,8 @@ class TinySlam:
         # print(f"corrected_pose() = {corrected_pose}")
         return corrected_pose
 
-    def localise(self, lidar, raw_odom_pose, N=200):
+    # N number of iterations without improvement
+    def localise(self, lidar, raw_odom_pose, N=150):
         """
         Compute the robot position wrt the map,
         and updates the odometry reference
@@ -93,8 +94,7 @@ class TinySlam:
         """
         current_correction = self.get_corrected_pose(raw_odom_pose)
         best_score = self._score(lidar, current_correction)
-        print("==============")
-        print(f"Initial Score: {best_score:.1f}")
+        initial_score = best_score
 
         current_odom_pos_ref = self.odom_pose_ref
         sigma = [1.5, 1.5, 0.3 * (np.pi / 180.0)]
@@ -118,7 +118,11 @@ class TinySlam:
                 iterations_without_improvement += 1
 
         iterations_count -= N
-        print(f"odom_pose_ref={self.odom_pose_ref} Took: {iterations_count}")
+        x, y, t = self.odom_pose_ref
+
+        print(f"Score : {initial_score} -> {best_score}")
+        print(f"odom_ref = [{x:.1f}, {y:.1f}, {t:.1f}] : {iterations_count}")
+
         return best_score
 
     def update_map(self, lidar, pose):
@@ -150,6 +154,3 @@ class TinySlam:
         self.grid.occupancy_map = np.clip(
             self.grid.occupancy_map, -self.grid.max_value, self.grid.max_value
         )
-
-    def score20(self, value):
-        return value * 20 / (self.grid.max_value * 360)
