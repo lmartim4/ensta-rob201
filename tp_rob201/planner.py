@@ -61,6 +61,10 @@ class Planner:
         start = tuple(self.grid.conv_world_to_map(A[0], A[1]))
         goal = tuple(self.grid.conv_world_to_map(B[0], B[1]))
 
+        if self.grid.occupancy_map[goal[0], goal[1]] > 15:
+            print("Goal cannot be a wall")
+            return None
+        
         open_set = []
         came_from = {}
 
@@ -70,23 +74,35 @@ class Planner:
         heapq.heappush(open_set, (f_score[start], start))
         in_open_set = set([start])
         
-        # Store the direction we came from for each node (used to calculate angles)
         direction_from = {}
         
-        while open_set:
+        # Optional: Add a counter to limit debug prints
+        iterations = 0
+        max_iterations = 10000  # Prevent infinite loops
+        
+        while open_set and iterations < max_iterations:
+            iterations += 1
+            
+            # Print status update only every 100 iterations
+            if iterations % 100 == 0:
+                print(f"Searching path... Nodes examined: {iterations}, Queue size: {len(in_open_set)}")
+                
             _, current = heapq.heappop(open_set)
             in_open_set.remove(current)
             
             if current == goal:
+                print(f"Path found after examining {iterations} nodes")
                 return self.reconstruct_path_with_angles(came_from, direction_from, current, A[2])
             
             for neighbor in self.get_neighbors(current):
                 neighbor = tuple(neighbor)
-                d = self.movement_cost(current, neighbor)
-                test_g_score = g_score[current] + d
-
+                
+                # Skip obstacles
                 if self.grid.occupancy_map[neighbor[0], neighbor[1]] > 15:
                     continue
+                    
+                d = self.movement_cost(current, neighbor)
+                test_g_score = g_score[current] + d
                 
                 if test_g_score < g_score.get(neighbor, float("infinity")):
                     direction = (neighbor[0] - current[0], neighbor[1] - current[1])
@@ -98,6 +114,11 @@ class Planner:
                     if neighbor not in in_open_set:
                         heapq.heappush(open_set, (f_score[neighbor], neighbor))
                         in_open_set.add(neighbor)
+        
+        if iterations >= max_iterations:
+            print("Path search exceeded maximum iterations")
+        else:
+            print("No path found")
                                 
         return None
     

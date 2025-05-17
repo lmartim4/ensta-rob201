@@ -334,8 +334,9 @@ class OccupancyGrid:
 
         print(f"Occupancy grid state loaded from {filename}.p")
 
-    def inflate_obstacles(self, radius, threshold=20):
+    def get_map_inflated_obstacles(self, radius, threshold=20):
         original_map = self.occupancy_map.copy()
+        map_to_return = self.occupancy_map.copy()
         
         radius_cells = int(radius / self.resolution)
         
@@ -343,9 +344,7 @@ class OccupancyGrid:
         
         y_indices, x_indices = np.ogrid[-radius_cells:radius_cells+1, -radius_cells:radius_cells+1]
         circle = x_indices**2 + y_indices**2 <= radius_cells**2
-        
-        print(f"Inflating {len(obstacle_indices[0])} obstacle cells with radius {radius_cells} cells")
-        
+                
         for i in range(len(obstacle_indices[0])):
             x, y = obstacle_indices[0][i], obstacle_indices[1][i]
             
@@ -360,6 +359,6 @@ class OccupancyGrid:
             circle_y_max = circle_y_min + (y_max - y_min)
             
             circle_mask = circle[circle_y_min:circle_y_max+1, circle_x_min:circle_x_max+1]
-            self.occupancy_map[x_min:x_max+1, y_min:y_max+1][circle_mask] = original_map[x, y]
+            map_to_return[x_min:x_max+1, y_min:y_max+1][circle_mask] = original_map[x, y]
         
-        print("Obstacle inflation completed")
+        return map_to_return

@@ -92,9 +92,7 @@ class MyRobotSlam(RobotAbstract):
 
         if self.load_last_status:
             self.occupancy_grid.load_state("last_grid")
-            self.occupancy_grid.inflate_obstacles(20)
             self.start_A_star()
-            self.occupancy_grid.load_state("last_grid")
         
 
     def update_map_tick(self, raw_odom, lidar):
@@ -126,17 +124,29 @@ class MyRobotSlam(RobotAbstract):
                 self.pose_to_use, self.target, trajectory)
     
     def start_A_star(self):
-        self.current_path_index = 0
-        waypoint_index = np.random.randint(0, len(self.waypoints))
+        print("A* 1")
+        self.current_path_index = 0        
+        print("A* 2")
+        grid_backup = self.occupancy_grid.occupancy_map.copy()        
         
-        self.current_path = self.planner.plan(self.pose_to_use, self.waypoints[waypoint_index])
+        #Inflate so that we cann get better curves and avoid corners
+        print("A* 3")
+        self.occupancy_grid.occupancy_map = self.occupancy_grid.get_map_inflated_obstacles(30)
         
-        if(self.current_path == None):
-            print("Failed to find path to waypoint: ", waypoint_index)
-            return
+        print("A* 4")
+        while(self.current_path == None):
+            waypoint_index = np.random.randint(0, len(self.waypoints))
             
-        self.positions_only_path = [[point[0], point[1]] for point in self.current_path]
+            print(f"Searching planner for Waypoint({waypoint_index})")
+            
+            print("A* 5")
+            self.current_path = self.planner.plan(self.pose_to_use, self.waypoints[waypoint_index])
+            print("A* 6")
         
+        # restore grid so we dont mess with the slam
+        self.occupancy_grid.occupancy_map = grid_backup
+        self.positions_only_path = [[point[0], point[1]] for point in self.current_path]
+        print("A* 7")
         
     def control(self):
         raw_odom = self.odometer_values()
@@ -153,7 +163,7 @@ class MyRobotSlam(RobotAbstract):
         return command
 
     def control_tp1(self):
-        if not hasattr("last_rotation"):
+        if not hasattr(self, "last_rotation"):
             self.last_rotation = 0
 
         if self.tick_count > 0:
@@ -180,10 +190,12 @@ class MyRobotSlam(RobotAbstract):
             return {"forward": 0, "rotation": 0}
         
         if self.current_path_index >= len(self.current_path):
-            print("Already at final target!")
+            print("A* called")
+            self.start_A_star()
             return {"forward": 0, "rotation": 0}
         
         current_target = self.current_path[self.current_path_index]
+        
         if has_arrived(self.pose_to_use, current_target):
             self.current_path_index += 10
             print(f"Evolving {self.current_path_index}/{len(self.current_path)}")
