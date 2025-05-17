@@ -74,7 +74,8 @@ class MyRobotSlam(RobotAbstract):
 
             self.corrected_pose = self.tiny_slam.get_corrected_pose(odometer)
 
-            if best_score > 5000 or self.tick_count < 20:
+            if best_score > 5000 or self.tick_count < 50:
+                # print("Tick = ", self.tick_count)
                 self.tiny_slam.update_map(lidar, self.corrected_pose)
         else:
             self.corrected_pose = odometer
@@ -87,7 +88,8 @@ class MyRobotSlam(RobotAbstract):
                 path_points = np.array(self.current_path)
                 world_points = np.array(
                     [
-                        self.tiny_slam.grid.conv_map_to_world(point[0], point[1])
+                        self.tiny_slam.grid.conv_map_to_world(
+                            point[0], point[1])
                         for point in path_points
                     ]
                 )
@@ -98,7 +100,8 @@ class MyRobotSlam(RobotAbstract):
                     ]
                 )
 
-            self.tiny_slam.grid.display_cv(self.corrected_pose, self.target, trajectory)
+            self.tiny_slam.grid.display_cv(
+                self.corrected_pose, self.target, trajectory)
 
     def control(self):
         """
@@ -108,8 +111,6 @@ class MyRobotSlam(RobotAbstract):
         self.map_tick()
 
         command = self.control_tp2()
-        # print(f"F:{command['forward']:.2f} R:{command['rotation']:.2f} - ")
-        # print(f"target: {self.target}")
         return command
 
     def control_tp1(self):
@@ -143,92 +144,9 @@ class MyRobotSlam(RobotAbstract):
         command = potential_field_control(lidar, pose, self.target)
 
         if has_arrived(pose, self.target):
-            self.move_to_next_waypoint()
+            self.next_waypoint()
             print(f"Moving to next waypoint: {self.target[:2]}")
         return command
-
-    def control_tp5(self):
-        """
-        Control function for TP5
-        Main control function with full SLAM,
-        predefined goals and A* path planning
-        """
-        # Define the list of hard-coded goals [x, y, theta]
-        predefined_goals = [
-            [200.0, 50.0, 0.0],
-        ]
-
-        # Initialize goal_index and path if they don't exist
-        self.target = predefined_goals[self.goal_index]
-        X_t, Y_t, Theta_t = self.target
-        self.current_path = None
-        self.path_index = 0
-
-        # Get current pose and update with SLAM correction
-        pose = self.odometer_values()
-        x_c, y_c, theta_c = self.tiny_slam.get_corrected_pose(pose)
-
-        # Get lidar data for obstacle detection
-        lidar = self.lidar()
-
-        # Convert world coordinates to map coordinates
-        current_pos_map = self.occupancy_grid.conv_world_to_map(x_c, y_c)
-        target_pos_map = self.occupancy_grid.conv_world_to_map(X_t, Y_t)
-
-        # Plan or replan path if needed
-        if (
-            self.current_path is None
-            or len(self.current_path) == 0
-            or self.path_index >= len(self.current_path)
-        ):
-            # Plan new path using A* planner
-            print(f"New goal {self.goal_index}: {self.target[:2]}")
-            self.current_path = self.planner.plan(current_pos_map, target_pos_map)
-            self.path_index = 0
-
-            # If no path is found, try the next goal
-            if self.current_path is None or len(self.current_path) == 0:
-                self.goal_index = (self.goal_index + 1) % len(predefined_goals)
-                self.target = predefined_goals[self.goal_index]
-                # Rotate a bit to scan environment
-                return {"forward": 0.0, "rotation": 0.1}
-
-        # Get next waypoint in the path
-        if self.path_index < len(self.current_path):
-            next_waypoint_map = self.current_path[self.path_index]
-            next_waypoint_world = self.occupancy_grid.conv_map_to_world(
-                next_waypoint_map[0], next_waypoint_map[1]
-            )
-
-            # Create a temporary target for the next waypoint
-            temp_target = [next_waypoint_world[0], next_waypoint_world[1], 0.0]
-
-            # Use potential field control to move to the next waypoint
-            command = potential_field_control(lidar, pose, temp_target)
-
-            # Check if we've reached the current waypoint
-            dist_to_waypoint = np.sqrt(
-                (pose[0] - next_waypoint_world[0]) ** 2
-                + (pose[1] - next_waypoint_world[1]) ** 2
-            )
-
-            if dist_to_waypoint < 10.0:  # Close enough to current waypoint
-                self.path_index += 1
-
-                # If we've reached the final waypoint (the goal)
-                if self.path_index >= len(self.current_path):
-                    print(f"Reached goal {self.goal_index}")
-                    self.goal_index = (self.goal_index + 1) % len(predefined_goals)
-                    self.target = predefined_goals[self.goal_index]
-                    self.current_path = None
-
-            if has_arrived(pose, self.target):
-                print("Robot seems stuck")
-
-            return command
-
-        # Fallback - should not reach here
-        return {"forward": 0.0, "rotation": 0.1}
 
     def choose_random_goal(self, pose, lidar):
         """
@@ -250,7 +168,7 @@ class MyRobotSlam(RobotAbstract):
 
         self.target = [x, y, 0]
 
-    def move_to_next_waypoint(self):
+    def next_waypoint(self):
         """
         Select the next waypoint from the predefined list
         """
@@ -267,10 +185,10 @@ class MyRobotSlam(RobotAbstract):
                 (250, -70, 0),
                 (0, -70, 0),
                 (0, 180, 0),
-                (-360, 180, 0),
+                (-340, 170, 0),
                 (-360, -80, 0),
                 (-410, -80, 0),
-                (-410, 100, 0),
+                (-440, 120, 0),
                 # After this point it should use A* to go somewhere else.
                 # (0.0, 0.0, 0.0),  # Return to starting position
             ]

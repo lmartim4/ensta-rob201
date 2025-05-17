@@ -43,10 +43,11 @@ def potential_field_control(lidar, current_pose, goal_pose):
     """
 
     grad_atractive = calculate_atractive_grad(
-        current_pose, goal_pose, d_lim=20, K_goal=0.5
+        current_pose, goal_pose, d_lim=10, K_goal=0.5
     )
 
-    grad_repulsive = calculate_repulsive_grad(lidar, current_pose, k_obs=100, d_safe=30)
+    grad_repulsive = calculate_repulsive_grad(
+        lidar, current_pose, k_obs=100, d_safe=30)
 
     grad_r = grad_atractive - grad_repulsive
     print(grad_r, " ", grad_atractive, " ", grad_repulsive)

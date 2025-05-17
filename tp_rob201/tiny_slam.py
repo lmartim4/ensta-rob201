@@ -98,11 +98,12 @@ class TinySlam:
 
         current_odom_pos_ref = self.odom_pose_ref
         sigma = [1.5, 1.5, 0.3 * (np.pi / 180.0)]
-        # sigma = [0, 0, 0]
 
         iterations_without_improvement = 0
+        iterations_count = 0
 
         while iterations_without_improvement < N:
+            iterations_count += 1
             offset = np.random.normal(0, sigma, 3)
 
             ref_offset = current_odom_pos_ref + offset
@@ -116,7 +117,8 @@ class TinySlam:
             else:
                 iterations_without_improvement += 1
 
-        print(f"odom_pose_ref={self.odom_pose_ref}")
+        iterations_count -= N
+        print(f"odom_pose_ref={self.odom_pose_ref} Took: {iterations_count}")
         return best_score
 
     def update_map(self, lidar, pose):
@@ -133,7 +135,7 @@ class TinySlam:
             pose[2] + lidar.get_ray_angles()
         )
 
-        self.grid.add_map_points(x, y, 1)
+        self.grid.add_map_points(x, y, 2)
 
         x = pose[0] + (lidar.get_sensor_values() - 10.0) * np.cos(
             pose[2] + lidar.get_ray_angles()
