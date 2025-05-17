@@ -43,11 +43,10 @@ def potential_field_control(lidar, current_pose, goal_pose):
     """
 
     grad_atractive = calculate_atractive_grad(
-        current_pose, goal_pose, d_lim=20, K_goal=0.2
+        current_pose, goal_pose, d_lim=20, K_goal=0.5
     )
 
-    grad_repulsive = calculate_repulsive_grad(
-        lidar, current_pose, k_obs=100, d_safe=30)
+    grad_repulsive = calculate_repulsive_grad(lidar, current_pose, k_obs=100, d_safe=30)
 
     grad_r = grad_atractive - grad_repulsive
     print(grad_r, " ", grad_atractive, " ", grad_repulsive)
@@ -56,7 +55,7 @@ def potential_field_control(lidar, current_pose, goal_pose):
     if forward_speed < 0.001:
         rotation_speed = 0
     else:
-        rotation_speed = calculate_rotation_speed(grad_r, current_pose, Kv=0.3)
+        rotation_speed = calculate_rotation_speed(grad_r, current_pose, Kv=0.2)
 
     if rotation_speed > 0.03:
         forward_speed = 0
@@ -86,8 +85,9 @@ def calculate_atractive_grad(current_pose, goal_pose, d_lim, K_goal):
 def calculate_rotation_speed(grad_r, current_pose, Kv):
     target_angle = np.atan2(grad_r[1], grad_r[0])
     angle_error = target_angle - current_pose[2]
-    print("angle_error: ", angle_error)
     angle_error = np.arctan2(np.sin(angle_error), np.cos(angle_error))
+
+    print("angle_error: ", angle_error)
 
     if np.abs(angle_error) * 180 / np.pi < 5:
         return 0

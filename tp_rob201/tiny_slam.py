@@ -84,7 +84,7 @@ class TinySlam:
         # print(f"corrected_pose() = {corrected_pose}")
         return corrected_pose
 
-    def localise(self, lidar, raw_odom_pose, N=20):
+    def localise(self, lidar, raw_odom_pose, N=200):
         """
         Compute the robot position wrt the map,
         and updates the odometry reference
@@ -94,10 +94,10 @@ class TinySlam:
         current_correction = self.get_corrected_pose(raw_odom_pose)
         best_score = self._score(lidar, current_correction)
         print("==============")
-        print(f"Initial Score: {self.score20(best_score):.1f}")
+        print(f"Initial Score: {best_score:.1f}")
 
         current_odom_pos_ref = self.odom_pose_ref
-        sigma = [10, 10, 10 * (np.pi / 180.0)]
+        sigma = [1.5, 1.5, 0.3 * (np.pi / 180.0)]
         # sigma = [0, 0, 0]
 
         iterations_without_improvement = 0

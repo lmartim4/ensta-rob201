@@ -68,12 +68,13 @@ class MyRobotSlam(RobotAbstract):
         if self.enable_slam:
             lidar = self.lidar()
             best_score = self.tiny_slam.localise(lidar, odometer)
+            # best_score = self.tiny_slam.score20(best_score)
 
-            print(f"Final Score = {self.tiny_slam.score20(best_score):.1f}")
+            print(f"Final Score = {best_score:.1f}")
 
             self.corrected_pose = self.tiny_slam.get_corrected_pose(odometer)
 
-            if best_score > 16 or self.tick_count < 20:
+            if best_score > 5000 or self.tick_count < 20:
                 self.tiny_slam.update_map(lidar, self.corrected_pose)
         else:
             self.corrected_pose = odometer
@@ -86,8 +87,7 @@ class MyRobotSlam(RobotAbstract):
                 path_points = np.array(self.current_path)
                 world_points = np.array(
                     [
-                        self.tiny_slam.grid.conv_map_to_world(
-                            point[0], point[1])
+                        self.tiny_slam.grid.conv_map_to_world(point[0], point[1])
                         for point in path_points
                     ]
                 )
@@ -98,8 +98,7 @@ class MyRobotSlam(RobotAbstract):
                     ]
                 )
 
-            self.tiny_slam.grid.display_cv(
-                self.corrected_pose, self.target, trajectory)
+            self.tiny_slam.grid.display_cv(self.corrected_pose, self.target, trajectory)
 
     def control(self):
         """
@@ -184,8 +183,7 @@ class MyRobotSlam(RobotAbstract):
         ):
             # Plan new path using A* planner
             print(f"New goal {self.goal_index}: {self.target[:2]}")
-            self.current_path = self.planner.plan(
-                current_pos_map, target_pos_map)
+            self.current_path = self.planner.plan(current_pos_map, target_pos_map)
             self.path_index = 0
 
             # If no path is found, try the next goal
@@ -220,8 +218,7 @@ class MyRobotSlam(RobotAbstract):
                 # If we've reached the final waypoint (the goal)
                 if self.path_index >= len(self.current_path):
                     print(f"Reached goal {self.goal_index}")
-                    self.goal_index = (self.goal_index +
-                                       1) % len(predefined_goals)
+                    self.goal_index = (self.goal_index + 1) % len(predefined_goals)
                     self.target = predefined_goals[self.goal_index]
                     self.current_path = None
 
@@ -267,13 +264,15 @@ class MyRobotSlam(RobotAbstract):
                 (450.0, -100.0, 0.0),
                 (450.0, -300.0, 0.0),
                 (250, -100, 0),
-                (250, -50, 0),
-                (0, -50, 0),
+                (250, -70, 0),
+                (0, -70, 0),
                 (0, 180, 0),
                 (-360, 180, 0),
-                (-360, -100, 0),
-                (0, 0, 0),
-                (0.0, 0.0, 0.0),  # Return to starting position
+                (-360, -80, 0),
+                (-410, -80, 0),
+                (-410, 100, 0),
+                # After this point it should use A* to go somewhere else.
+                # (0.0, 0.0, 0.0),  # Return to starting position
             ]
             self.current_waypoint_index = 0
         else:

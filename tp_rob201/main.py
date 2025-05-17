@@ -5,6 +5,7 @@ from place_bot.entities.odometer import OdometerParams
 from place_bot.simu_world.simulator import Simulator
 
 from my_robot_slam import MyRobotSlam
+
 from worlds.my_world import MyWorld
 
 if __name__ == "__main__":
