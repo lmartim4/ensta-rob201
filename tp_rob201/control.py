@@ -1,30 +1,12 @@
 """A set of robotics control functions"""
 
-import random
+from place_bot.entities.odometer import normalize_angle 
 
 import numpy as np
 
 
 def has_arrived(pose, goal, dlim=20):
     return np.linalg.norm(pose - goal) < dlim
-
-
-def reactive_obst_avoid(lidar):
-    laser_dist = lidar.get_sensor_values()
-
-    threshold_distance = 30
-
-    if laser_dist[180] < threshold_distance:
-        rotation_angle = random.uniform(-1, 1)
-        speed = 0.0
-        rotation_speed = rotation_angle
-    else:
-        speed = 0.2
-        rotation_speed = 0.0
-
-    command = {"forward": speed, "rotation": rotation_speed}
-
-    return command
 
 
 def potential_field_control(lidar, current_pose, goal_pose):
@@ -45,28 +27,10 @@ def potential_field_control(lidar, current_pose, goal_pose):
     )
 
     grad_repulsive = calculate_repulsive_grad(
-        lidar, current_pose, k_obs=1, d_safe=20)
+        lidar, k_obs=1, d_safe=20)
 
     grad_r = grad_atractive - grad_repulsive
-    grad_r_magnitude = np.linalg.norm(grad_r)
-    grad_attractive_magnitude = np.linalg.norm(grad_atractive)
-    
-    # Define thresholds for detection
-    LOCAL_MIN_GRAD_R_THRESHOLD = 0.05
-    SIGNIFICANT_ATTRACTIVE_THRESHOLD = 0.2
-    
-    # Check if robot is stuck in local minimum
-    is_local_minimum = (grad_r_magnitude < LOCAL_MIN_GRAD_R_THRESHOLD and 
-                        grad_attractive_magnitude > SIGNIFICANT_ATTRACTIVE_THRESHOLD)
-    
-    if is_local_minimum:
-        return {
-            "forward": 0.2,  # Move forward slowly
-            "rotation": 0.3,  # Turn to try to escape the local minimum
-        }
-    
-    # Original control logic
-    forward_speed = grad_r_magnitude
+    forward_speed = np.linalg.norm(grad_r)
 
     if forward_speed < 0.001:
         rotation_speed = 0
@@ -92,7 +56,7 @@ def calculate_atractive_grad(current_pose, goal_pose, d_lim, K_goal):
     if dist <= d_lim:
         grad_f = K_goal * diff / d_lim
         return grad_f
-        return np.array([0, 0, 0])
+        #return np.array([0, 0, 0])
     else:
         grad_f = K_goal * (diff) / dist
 
@@ -102,9 +66,7 @@ def calculate_atractive_grad(current_pose, goal_pose, d_lim, K_goal):
 def calculate_rotation_speed(grad_r, current_pose, Kv):
     target_angle = np.atan2(grad_r[1], grad_r[0])
     angle_error = target_angle - current_pose[2]
-    angle_error = np.arctan2(np.sin(angle_error), np.cos(angle_error))
-
-    # print("angle_error: ", angle_error)
+    angle_error = normalize_angle(angle_error)
 
     if np.abs(angle_error) * 180 / np.pi < 5:
         return 0
@@ -112,7 +74,7 @@ def calculate_rotation_speed(grad_r, current_pose, Kv):
         return Kv * (angle_error)
 
 
-def calculate_repulsive_grad(lidar, current_pose, k_obs, d_safe):
+def calculate_repulsive_grad(lidar, k_obs, d_safe):
     distances = np.array(lidar.get_sensor_values())
     angles = np.array(lidar.get_ray_angles())
 

@@ -1,4 +1,4 @@
-########## MyRobotSlam ###############
+########## MyRobotSlam.py ###############
 
 
 # def control_tp1(self):
@@ -37,3 +37,23 @@
 
 ######################################
 
+############# Control.py #############
+
+# def reactive_obst_avoid(lidar):
+#     laser_dist = lidar.get_sensor_values()
+
+#     threshold_distance = 30
+
+#     if laser_dist[180] < threshold_distance:
+#         rotation_angle = random.uniform(-1, 1)
+#         speed = 0.0
+#         rotation_speed = rotation_angle
+#     else:
+#         speed = 0.2
+#         rotation_speed = 0.0
+
+#     command = {"forward": speed, "rotation": rotation_speed}
+
+#     return command
+
+######################################

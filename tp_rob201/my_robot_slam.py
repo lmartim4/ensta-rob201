@@ -53,8 +53,7 @@ class MyRobotSlam(RobotAbstract):
         # CONFIGURATION
         
         # Whether we preload a map or starts from an empty grid
-        self.preload_occupancy_map = True
-        
+        self.preload_occupancy_map = False
         
         # This is the list of checkpoints the robot should follow in order to construct its map
         self.exploring_waypoints = [
@@ -97,7 +96,7 @@ class MyRobotSlam(RobotAbstract):
 
     def update_map_tick(self, raw_odom, lidar):
         if self.enable_localisation:
-            best_score = self.tiny_slam.localise(lidar, raw_odom)
+            best_score = self.tiny_slam.localise_optimized(lidar, raw_odom)
             self.best_pose = self.tiny_slam.get_corrected_pose(raw_odom)
 
             if best_score > 5000 or self.tick_count < 50:
@@ -184,7 +183,6 @@ class MyRobotSlam(RobotAbstract):
         if self.exploring_waypoints_index == len(self.exploring_waypoints):
             self.has_completed_mapping = True
             self.occupancy_grid.save_state("last_grid")
-            self.tiny_slam.save_state("last_slam")
 
         if not self.has_completed_mapping:
             self.target = self.exploring_waypoints[self.exploring_waypoints_index]

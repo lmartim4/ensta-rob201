@@ -1,17 +1,37 @@
 """A simple robotics navigation code including SLAM, exploration, planning"""
 
-import pickle
+from numba import jit  # For JIT compilation
+import utils
 import numpy as np
 from occupancy_grid import OccupancyGrid
 from place_bot.entities.lidar import Lidar
 
-
+@jit(nopython=True)
+def _score_vectorized(occupancy_map, map_coords_x, map_coords_y, x_max_map, y_max_map):
+    valid_mask = (
+        (map_coords_x >= 0)
+        & (map_coords_x < x_max_map)
+        & (map_coords_y >= 0)
+        & (map_coords_y < y_max_map)
+    )
+    valid_x = map_coords_x[valid_mask].astype(np.int32)
+    valid_y = map_coords_y[valid_mask].astype(np.int32)
+    
+    # Replace advanced indexing with a loop
+    total_score = 0.0
+    for i in range(len(valid_x)):
+        total_score += occupancy_map[valid_x[i], valid_y[i]]
+    
+    return total_score
+    
+    log_probs = occupancy_map[valid_x, valid_y]
+    return np.sum(log_probs)
+    
 class TinySlam:
     """Simple occupancy grid SLAM"""
 
     def __init__(self, occupancy_grid: OccupancyGrid):
         self.grid = occupancy_grid
-        # Origin of the odom frame in the map frame
         self.odom_pose_ref = np.array([0.0, 0.0, 0.0])
 
     def _score(self, lidar: Lidar, pose):
@@ -21,81 +41,44 @@ class TinySlam:
         pose : [x, y, theta] nparray, position of
         the robot to evaluate, in world coordinates
         """
-
         sensor_values = lidar.get_sensor_values()
         ray_angles = lidar.get_ray_angles()
-
         max_lidar_range = lidar.max_range
-
         lidar_valid_points_mask = sensor_values < max_lidar_range
-
-        dist_filtred = sensor_values[lidar_valid_points_mask]
-        angles_filtres = ray_angles[lidar_valid_points_mask]
-
-        x, y, theta = pose
-
-        x_world = x + dist_filtred * np.cos(theta + angles_filtres)
-        y_world = y + dist_filtred * np.sin(theta + angles_filtres)
-
+        dist_filtered = sensor_values[lidar_valid_points_mask]
+        angles_filtered = ray_angles[lidar_valid_points_mask]
+        x_world, y_world = utils.pose_radial_to_word(pose, dist_filtered, angles_filtered)
         map_coords = self.grid.conv_world_to_map(x_world, y_world)
-
-        valid_mask = (
-            (map_coords[0] >= 0)
-            & (map_coords[0] < self.grid.x_max_map)
-            & (map_coords[1] >= 0)
-            & (map_coords[1] < self.grid.y_max_map)
+        
+        # Use the standalone function for scoring
+        return _score_vectorized(
+            self.grid.occupancy_map,
+            map_coords[0],
+            map_coords[1],
+            self.grid.x_max_map, 
+            self.grid.y_max_map
         )
-
-        valid_x = map_coords[0][valid_mask]
-        valid_y = map_coords[1][valid_mask]
-
-        valid_x = valid_x.astype(int)
-        valid_y = valid_y.astype(int)
-
-        log_probs = self.grid.occupancy_map[valid_x, valid_y]
-
-        score = np.sum(log_probs)
-
-        return score
-
+    
     def get_corrected_pose(self, odom_pose, odom_pose_ref=None):
-        """
-        Compute corrected pose in map frame
-        from raw odom pose + odom frame pose,
-        either given as second param or using the ref from the object
-        odom : raw odometry position
-        odom_pose_ref : optional, origin of the odom frame if given,
-                        use self.odom_pose_ref if not given
-        """
         if odom_pose_ref is None:
             odom_pose_ref = self.odom_pose_ref
 
-        # Robot Odom
         x0, y0, theta0 = odom_pose
-        x0ref, y0ref, theta0ref = odom_pose_ref
-        # Robot Absolut
+        
         alpha0 = np.arctan2(y0, x0)
         d0 = np.sqrt(x0**2 + y0**2)
 
-        x = x0ref + d0 * np.cos(theta0ref + alpha0)
-        y = y0ref + d0 * np.sin(theta0ref + alpha0)
-        theta = theta0ref + theta0
+        x,y = utils.pose_radial_to_word(odom_pose_ref, d0, alpha0)
+        theta = odom_pose_ref[2] + theta0
 
         corrected_pose = np.array([x, y, theta])
-        # print(f"corrected_pose() = {corrected_pose}")
         return corrected_pose
 
-    # N number of iterations without improvement
-    def localise(self, lidar, raw_odom_pose, N=150):
-        """
-        Compute the robot position wrt the map,
-        and updates the odometry reference
-        lidar : placebot object with lidar data
-        odom : [x, y, theta] nparray, raw odometry position
-        """
+    def localise(self, lidar, raw_odom_pose, N=150, debug=False):
         current_correction = self.get_corrected_pose(raw_odom_pose)
         best_score = self._score(lidar, current_correction)
         initial_score = best_score
+        
         current_odom_pos_ref = self.odom_pose_ref
         sigma = [1.5, 1.5, 0.4 * (np.pi / 180.0)]
 
@@ -118,39 +101,81 @@ class TinySlam:
                 iterations_without_improvement += 1
 
         iterations_count -= N
-        x, y, t = self.odom_pose_ref
-
-        #print(f"Score : {initial_score} -> {best_score}")
-        #print(f"odom_ref = [{x:.1f}, {y:.1f}, {t:.1f}] : {iterations_count}")
+        
+        if debug:
+            x, y, t = self.odom_pose_ref
+            print(f"Score : {initial_score} -> {best_score}")
+            print(f"odom_ref = [{x:.1f}, {y:.1f}, {t:.1f}] : {iterations_count}")
 
         return best_score
 
     def update_map(self, lidar, pose):
-        """
-        Bayesian map update with new observation
-        lidar : placebot object with lidar data
-        pose : [x, y, theta] nparray, corrected pose in world coordinates
-        """
-
-        x = pose[0] + lidar.get_sensor_values() * np.cos(
-            pose[2] + lidar.get_ray_angles()
-        )
-        y = pose[1] + lidar.get_sensor_values() * np.sin(
-            pose[2] + lidar.get_ray_angles()
-        )
+        x, y = utils.lidar_to_world_coords(pose, lidar)
 
         self.grid.add_map_points(x, y, 2)
 
-        x = pose[0] + (lidar.get_sensor_values() - 10.0) * np.cos(
-            pose[2] + lidar.get_ray_angles()
-        )
-        y = pose[1] + (lidar.get_sensor_values() - 10.0) * np.sin(
-            pose[2] + lidar.get_ray_angles()
-        )
+        x, y = utils.lidar_to_world_coords(pose, lidar, -10.0)
 
         for xi, yi in zip(x, y):
             self.grid.add_value_along_line(pose[0], pose[1], xi, yi, -1)
 
-        self.grid.occupancy_map = np.clip(
-            self.grid.occupancy_map, -self.grid.max_value, self.grid.max_value
-        )
+        np.clip(self.grid.occupancy_map, -self.grid.max_value, self.grid.max_value, out=self.grid.occupancy_map)
+        
+    def localise_optimized(self, lidar, raw_odom_pose, N=300, batch_size=50, debug=False):
+        """Optimized version that processes batches of poses at once"""
+        current_correction = self.get_corrected_pose(raw_odom_pose)
+        best_score = self._score(lidar, current_correction)
+        initial_score = best_score
+        current_odom_pos_ref = self.odom_pose_ref.copy()
+        sigma = np.array([1.5, 1.5, 0.4 * (np.pi / 180.0)])
+        
+        iterations_without_improvement = 0
+        iterations_count = 0
+        
+        # Pre-filter lidar data once
+        sensor_values = lidar.get_sensor_values()
+        ray_angles = lidar.get_ray_angles()
+        max_lidar_range = lidar.max_range
+        valid_mask = sensor_values < max_lidar_range
+        distances = sensor_values[valid_mask]
+        angles = ray_angles[valid_mask]
+        
+        while iterations_without_improvement < N:
+            # Generate batch_size random poses at once
+            offsets = np.random.normal(0, sigma, (batch_size, 3))
+            ref_offsets = current_odom_pos_ref + offsets
+            
+            # Get corrected poses (vectorized)
+            batch_poses = np.zeros((batch_size, 3))
+            for i, ref in enumerate(ref_offsets):
+                batch_poses[i] = self.get_corrected_pose(raw_odom_pose, ref)
+            
+            # Calculate scores for all poses at once
+            x_worlds, y_worlds = utils.lidar_to_world_batch(lidar, batch_poses)
+            scores = np.zeros(batch_size)
+            
+            for i in range(batch_size):
+                map_coords = self.grid.conv_world_to_map(x_worlds[i], y_worlds[i])
+                scores[i] = _score_vectorized(
+                    self.grid.occupancy_map, 
+                    map_coords[0], map_coords[1],
+                    self.grid.x_max_map, self.grid.y_max_map
+                )
+            
+            # Find best pose in batch
+            best_in_batch = np.argmax(scores)
+            if scores[best_in_batch] > best_score:
+                best_score = scores[best_in_batch]
+                self.odom_pose_ref = ref_offsets[best_in_batch]
+                iterations_without_improvement = 0
+            else:
+                iterations_without_improvement += batch_size
+            
+            iterations_count += batch_size
+        
+        if debug:
+            x, y, t = self.odom_pose_ref
+            print(f"Score : {initial_score} -> {best_score}")
+            print(f"odom_ref = [{x:.1f}, {y:.1f}, {t:.1f}] : {iterations_count}")
+        
+        return best_score
