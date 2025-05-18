@@ -114,7 +114,7 @@ class MyRobotSlam(RobotAbstract):
 
     def update_map_tick(self, raw_odom, lidar):
         if self.enable_localisation:
-            best_score = self.tiny_slam.localise_optimized(lidar, raw_odom)
+            best_score = self.tiny_slam.localise(lidar, raw_odom)
             self.best_pose = self.tiny_slam.get_corrected_pose(raw_odom)
 
             if best_score > self.LOCALIZATION_SCORE_THRESHOLD or self.tick_count < self.INITIAL_MAP_UPDATE_TICKS:
