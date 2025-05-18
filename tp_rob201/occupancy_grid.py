@@ -270,13 +270,35 @@ class OccupancyGrid:
 
     def load(self, filename):
         """
-        Load map from pickle object
-        filename : base name (without extension) of file on disk
-        """
-        # TODO
-        #
+        Load the complete state of the occupancy grid from a pickle file
 
-    def save_state(self, filename):
+        Parameters:
+        filename : str
+            Base name (without extension) of file on disk
+        """
+        with open(filename + ".p", "rb") as fid:
+            data = pickle.load(fid)
+
+        self.occupancy_map = data["occupancy_map"]
+        self.resolution = data["resolution"]
+        self.x_min_world = data["x_min_world"]
+        self.x_max_world = data["x_max_world"]
+        self.y_min_world = data["y_min_world"]
+        self.y_max_world = data["y_max_world"]
+
+        if "max_value" in data:
+            self.max_value = data["max_value"]
+        if "x_max_map" in data and "y_max_map" in data:
+            self.x_max_map = data["x_max_map"]
+            self.y_max_map = data["y_max_map"]
+        else:
+            self.x_max_map, self.y_max_map = self.conv_world_to_map(
+                self.x_max_world, self.y_max_world
+            )
+
+        print(f"Occupancy grid state loaded from {filename}.p")
+    
+    def save(self, filename):
         """
         Save the complete state of the occupancy grid to a pickle file
 
@@ -300,39 +322,6 @@ class OccupancyGrid:
                 fid,
             )
         print(f"Occupancy grid state saved to {filename}.p")
-
-    def load_state(self, filename):
-        """
-        Load the complete state of the occupancy grid from a pickle file
-
-        Parameters:
-        filename : str
-            Base name (without extension) of file on disk
-        """
-        with open(filename + ".p", "rb") as fid:
-            data = pickle.load(fid)
-
-        # Update all attributes from the loaded data
-        self.occupancy_map = data["occupancy_map"]
-        self.resolution = data["resolution"]
-        self.x_min_world = data["x_min_world"]
-        self.x_max_world = data["x_max_world"]
-        self.y_min_world = data["y_min_world"]
-        self.y_max_world = data["y_max_world"]
-
-        # If these attributes are in the saved data, load them too
-        if "max_value" in data:
-            self.max_value = data["max_value"]
-        if "x_max_map" in data and "y_max_map" in data:
-            self.x_max_map = data["x_max_map"]
-            self.y_max_map = data["y_max_map"]
-        else:
-            # Recalculate if not in the saved data
-            self.x_max_map, self.y_max_map = self.conv_world_to_map(
-                self.x_max_world, self.y_max_world
-            )
-
-        print(f"Occupancy grid state loaded from {filename}.p")
 
     def get_inflated_map(self, radius, threshold=15):
         original_map = self.occupancy_map.copy()

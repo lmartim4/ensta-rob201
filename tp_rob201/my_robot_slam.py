@@ -17,6 +17,14 @@ from occupancy_grid import OccupancyGrid
 from planner import Planner
 
 class MyRobotSlam(RobotAbstract):
+    
+    LOCALIZATION_SCORE_THRESHOLD = 5000
+    INITIAL_MAP_UPDATE_TICKS = 50
+    MAP_DISPLAY_FREQUENCY = 10
+    MAP_INFLATION_RADIUS = 25
+    OBSTACLE_THRESHOLD = 15
+    PATH_SKIP_STEPS = 10
+    
     def __init__(
         self,
         lidar_params: LidarParams = LidarParams(),
@@ -58,21 +66,31 @@ class MyRobotSlam(RobotAbstract):
         # This is the list of checkpoints the robot should follow in order to construct its map
         self.exploring_waypoints = [
             (0, 80, 0),
-            (200.0, 180.0, 0.0),
-            (300.0, 200.0, 0.0),
-            (450.0, 270.0, 0.0),
-            (450.0, -100.0, 0.0),
-            (450.0, -300.0, 0.0),
+            (200, 180, 0),
+            (300, 200, 0),
+            (450, 270, 0),
+            (450, -100, 0), 
+            (450, -300.0, 0),
+            (0, -300, 0),
+            (100, -300, 0),
             (300, -100, 0),
             (300, -70, 0),
             (0, -70, 0),
             (0, 180, 0),
             (-310, 180, 0),
-            (-270, -70, 0),
-            (-380, -60, 0),
-            (-410, 100, 0),
+            (-310, 120, 0),
+            (-200, 0, 0),
+            (-200, 80, 0),
+            (-310, 80, 0),
+            (-310, -70, 0),
+            (-310, -180, 0),
+            (-280, -180, 0),
+            (-310, -60, 0),
+            (-410, -60, 0),
+            (-450, 100, 0),
+            (-450, 0, 0),
         ]
-        self.exploring_waypoints_index = 0
+        self.exploring_waypoints_index = 0 #11
         
         # Control functions will try to reach the self.target
         self.target = self.exploring_waypoints[self.exploring_waypoints_index]
@@ -90,7 +108,7 @@ class MyRobotSlam(RobotAbstract):
         self.current_path_index = 0
 
         if self.preload_occupancy_map:
-            self.occupancy_grid.load_state("last_grid")
+            self.occupancy_grid.load("last_grid")
             self.planAndStartTrajectoryToRandomWaypoint()
         
 
@@ -99,20 +117,15 @@ class MyRobotSlam(RobotAbstract):
             best_score = self.tiny_slam.localise_optimized(lidar, raw_odom)
             self.best_pose = self.tiny_slam.get_corrected_pose(raw_odom)
 
-            if best_score > 5000 or self.tick_count < 50:
+            if best_score > self.LOCALIZATION_SCORE_THRESHOLD or self.tick_count < self.INITIAL_MAP_UPDATE_TICKS:
                 self.tiny_slam.update_map(lidar, self.best_pose)
         else:
             self.best_pose = raw_odom
             self.tiny_slam.update_map(lidar, raw_odom)
 
-    def draw_map_tick(self):
-        self.tick_count += 1
-        
-        if self.tick_count % 10 == 0:
-            self.occupancy_grid.display_cv(self.best_pose, self.target, self.path_2d)
     
     def planAndStartTrajectoryToRandomWaypoint(self):   
-        self.occupancy_grid.occupancy_map, grid_backup = self.occupancy_grid.get_inflated_map(radius=30, threshold=15)
+        self.occupancy_grid.occupancy_map, grid_backup = self.occupancy_grid.get_inflated_map(radius= self.MAP_INFLATION_RADIUS, threshold=self.OBSTACLE_THRESHOLD)
         
         self.current_path = None
         while(self.current_path == None):
@@ -122,9 +135,12 @@ class MyRobotSlam(RobotAbstract):
         
         self.occupancy_grid.occupancy_map = grid_backup
         self.current_path_index = 0     
-        self.target = self.current_path[self.current_path_index]
-            
-        # Create 2d path for map drawing
+        self.update_target(self.current_path[self.current_path_index], "A")
+        self.create_2d_path()
+    
+    def create_2d_path(self):
+        print("Indexing trajectory to map")
+        
         self.path_2d = [[point[0], point[1]] for point in self.current_path]
         self.path_2d = np.array(self.path_2d)
         self.path_2d  = np.array(
@@ -134,21 +150,38 @@ class MyRobotSlam(RobotAbstract):
             ]
         )
     
-        
+    def next_waypoint(self):
+        self.exploring_waypoints_index += 1
+
+        if self.exploring_waypoints_index == len(self.exploring_waypoints):
+            self.has_completed_mapping = True
+            self.occupancy_grid.save("last_grid")
+            self.planAndStartTrajectoryToRandomWaypoint()
+            
+        if not self.has_completed_mapping:
+            self.update_target(self.exploring_waypoints[self.exploring_waypoints_index], f"Waypoint {self.exploring_waypoints_index}")
+    
+    def update_target(self, new_target, target_name = "N/A"):
+        self.target = new_target
+        print(f"Target Update : {target_name} - ({self.target})")
+    
     def control(self):
+        self.tick_count += 1
+        
         raw_odom = self.odometer_values()
         lidar = self.lidar()
 
         self.update_map_tick(raw_odom, lidar)
-        self.draw_map_tick()
-
+        
+        if self.tick_count % self.MAP_DISPLAY_FREQUENCY == 0:
+            self.occupancy_grid.display_cv(self.best_pose, self.target, self.path_2d)
+        
         if not self.has_completed_mapping and not self.preload_occupancy_map:
             command = self.control_tp2(lidar)
         else:
             command = self.control_tp5(lidar)
 
         return command
-
 
 
     def control_tp2(self, lidar):
@@ -163,28 +196,12 @@ class MyRobotSlam(RobotAbstract):
             return {"forward": 0, "rotation": 0}
         
         if has_arrived(self.best_pose, self.target):
-            self.current_path_index += 10
+            self.current_path_index += self.PATH_SKIP_STEPS
             
             if self.current_path_index >= len(self.current_path):
                 print("Reached final target in path!")
                 self.planAndStartTrajectoryToRandomWaypoint()
-                return {"forward": 0, "rotation": 0}
             else:
-                print(f"Evolving {self.current_path_index}/{len(self.current_path)}")
-                self.target = self.current_path[self.current_path_index]
+                self.update_target(self.current_path[self.current_path_index], f"Reached Checkpoint: {self.current_path_index}/{len(self.current_path)}")
                 
         return potential_field_control(lidar, self.best_pose, self.target)
-    
-    # This helps us use tp2 to complete map scanning and then
-    # use tp5 A* to plan trajectory
-    def next_waypoint(self):
-        self.exploring_waypoints_index += 1
-
-        if self.exploring_waypoints_index == len(self.exploring_waypoints):
-            self.has_completed_mapping = True
-            self.occupancy_grid.save_state("last_grid")
-
-        if not self.has_completed_mapping:
-            self.target = self.exploring_waypoints[self.exploring_waypoints_index]
-        else:
-            self.target = [0, 0, 0]
