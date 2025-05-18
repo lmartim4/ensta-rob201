@@ -58,7 +58,7 @@ class TinySlam:
         corrected_pose = np.array([x, y, theta])
         return corrected_pose
 
-    def localise(self, lidar, raw_odom_pose, N=150, debug=False):
+    def localise(self, lidar, raw_odom_pose, N=100, debug=False):
         current_correction = self.get_corrected_pose(raw_odom_pose)
         best_score = self._score(lidar, current_correction)
         initial_score = best_score

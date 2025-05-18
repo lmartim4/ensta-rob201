@@ -11,6 +11,9 @@ from occupancy_grid import OccupancyGrid
 class Planner:
     """Simple occupancy grid Planner"""
 
+    MAP_INFLATION_RADIUS = 25
+    OBSTACLE_THRESHOLD = 15
+
     def __init__(self, occupancy_grid: OccupancyGrid):
         self.grid = occupancy_grid
         self.odom_pose_ref = np.array([0, 0, 0])
@@ -65,12 +68,13 @@ class Planner:
             print("A cannot be a wall")
             return None
         
+        inflated_grid = self.grid.get_inflated_map(radius= self.MAP_INFLATION_RADIUS, threshold=self.OBSTACLE_THRESHOLD)
+
         if self.grid.occupancy_map[goal[0], goal[1]] > 15:
             print("B cannot be a wall")
             return None
         
-        
-        
+
         open_set = []
         came_from = {}
 
@@ -81,7 +85,6 @@ class Planner:
         in_open_set = set([start])
         
         direction_from = {}
-        
         iterations = 0
         
         while open_set:
@@ -100,7 +103,7 @@ class Planner:
             for neighbor in self.get_neighbors(current):
                 neighbor = tuple(neighbor)
                 
-                if self.grid.occupancy_map[neighbor[0], neighbor[1]] > 15:
+                if inflated_grid[neighbor[0], neighbor[1]] > 15:
                     continue
                     
                 d = self.movement_cost(current, neighbor)

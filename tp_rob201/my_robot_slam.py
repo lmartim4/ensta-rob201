@@ -21,9 +21,7 @@ class MyRobotSlam(RobotAbstract):
     LOCALIZATION_SCORE_THRESHOLD = 5000
     INITIAL_MAP_UPDATE_TICKS = 50
     MAP_DISPLAY_FREQUENCY = 10
-    MAP_INFLATION_RADIUS = 25
-    OBSTACLE_THRESHOLD = 15
-    PATH_SKIP_STEPS = 10
+    PATH_SKIP_STEPS = 15
     
     def __init__(
         self,
@@ -61,7 +59,7 @@ class MyRobotSlam(RobotAbstract):
         # CONFIGURATION
         
         # Whether we preload a map or starts from an empty grid
-        self.preload_occupancy_map = False
+        self.preload_occupancy_map = False #False
         
         # This is the list of checkpoints the robot should follow in order to construct its map
         self.exploring_waypoints = [
@@ -125,7 +123,7 @@ class MyRobotSlam(RobotAbstract):
 
     
     def planAndStartTrajectoryToRandomWaypoint(self):   
-        self.occupancy_grid.occupancy_map, grid_backup = self.occupancy_grid.get_inflated_map(radius= self.MAP_INFLATION_RADIUS, threshold=self.OBSTACLE_THRESHOLD)
+        #self.occupancy_grid.occupancy_map, grid_backup = self.occupancy_grid.get_inflated_map(radius= self.MAP_INFLATION_RADIUS, threshold=self.OBSTACLE_THRESHOLD)
         
         self.current_path = None
         while(self.current_path == None):
@@ -133,7 +131,6 @@ class MyRobotSlam(RobotAbstract):
             print(f"Searching planner for Waypoint({waypoint_index})")
             self.current_path = self.planner.plan(self.best_pose, self.exploring_waypoints[waypoint_index])
         
-        self.occupancy_grid.occupancy_map = grid_backup
         self.current_path_index = 0     
         self.update_target(self.current_path[self.current_path_index], "A")
         self.create_2d_path()

@@ -1,7 +1,7 @@
 """A set of robotics control functions"""
 
 from place_bot.entities.odometer import normalize_angle 
-
+import utils
 import numpy as np
 
 
@@ -10,24 +10,13 @@ def has_arrived(pose, goal, dlim=20):
 
 
 def potential_field_control(lidar, current_pose, goal_pose):
-    """
-    Control using potential field for goal reaching and obstacle avoidance
-    lidar : placebot object with lidar data
-    current_pose : [x, y, theta] nparray, current pose in odom or world frame
-    goal_pose : [x, y, theta] nparray, target pose in odom or world frame
-    Notes: As lidar and odom are local only data, goal and gradient will
-    be defined either in
-    robot (x,y) frame (centered on robot, x forward, y on left) or in odom
-    (centered / aligned
-    on initial pose, x forward, y on left)
-    """
-
     grad_atractive = calculate_atractive_grad(
         current_pose, goal_pose, d_lim=20, K_goal=0.4
     )
 
     grad_repulsive = calculate_repulsive_grad(
-        lidar, k_obs=1, d_safe=20)
+        lidar, k_obs=10, d_safe=50
+    )
 
     grad_r = grad_atractive - grad_repulsive
     forward_speed = np.linalg.norm(grad_r)
@@ -37,11 +26,14 @@ def potential_field_control(lidar, current_pose, goal_pose):
     else:
         rotation_speed = calculate_rotation_speed(grad_r, current_pose, Kv=0.8)
 
-    if rotation_speed > 0.001:
+    if abs(rotation_speed) > 0.001:
         forward_speed = 0
 
-    if abs(grad_atractive[0]) < 0.001 and abs(rotation_speed) < 0.001:
-        return {"forward": 0, "rotation": 0}
+    if forward_speed < 0.001 and abs(rotation_speed) < 0.001:
+        return {
+            "forward": 0,
+            "rotation": 0
+        }
 
     return {
         "forward": np.clip(forward_speed, a_min=-0.4, a_max=0.4),
@@ -56,7 +48,6 @@ def calculate_atractive_grad(current_pose, goal_pose, d_lim, K_goal):
     if dist <= d_lim:
         grad_f = K_goal * diff / d_lim
         return grad_f
-        #return np.array([0, 0, 0])
     else:
         grad_f = K_goal * (diff) / dist
 
@@ -75,23 +66,20 @@ def calculate_rotation_speed(grad_r, current_pose, Kv):
 
 
 def calculate_repulsive_grad(lidar, k_obs, d_safe):
-    distances = np.array(lidar.get_sensor_values())
-    angles = np.array(lidar.get_ray_angles())
+    raw_dist = np.array(lidar.get_sensor_values())
+    raw_angles = np.array(lidar.get_ray_angles())
 
-    mask = distances < d_safe
+    filt = raw_dist < d_safe
 
-    filtered_distances = distances[mask]
-    filtered_angles = angles[mask]
+    filt_ranges = raw_dist[filt]
+    filt_angles = raw_angles[filt]
 
-    x_positions = filtered_distances * np.cos(filtered_angles)
-    y_positions = filtered_distances * np.sin(filtered_angles)
+    x_pos,y_pos = utils.polar_to_cartesian(r=filt_ranges,theta=filt_angles)
 
-    q_obs = np.column_stack(
-        (x_positions, y_positions, np.zeros_like(filtered_distances))
-    )
+    q_obs = np.column_stack((x_pos, y_pos, np.zeros_like(filt_ranges)))
 
-    scalar_factors = (k_obs / (filtered_distances**3)) * (
-        1 / filtered_distances - 1 / d_safe
+    scalar_factors = (k_obs / (filt_ranges**3)) * (
+        1 / filt_ranges - 1 / d_safe
     )
 
     gradient_components = q_obs * scalar_factors[:, np.newaxis]

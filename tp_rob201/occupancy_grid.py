@@ -329,7 +329,7 @@ class OccupancyGrid:
         
         radius_cells = int(radius / self.resolution)
         
-        obstacle_indices = np.where(original_map > threshold)
+        obstacle_indices = np.where(map_to_return > threshold)
         
         y_indices, x_indices = np.ogrid[-radius_cells:radius_cells+1, -radius_cells:radius_cells+1]
         circle = x_indices**2 + y_indices**2 <= radius_cells**2
@@ -350,4 +350,4 @@ class OccupancyGrid:
             circle_mask = circle[circle_y_min:circle_y_max+1, circle_x_min:circle_x_max+1]
             map_to_return[x_min:x_max+1, y_min:y_max+1][circle_mask] = original_map[x, y]
         
-        return map_to_return, original_map
+        return map_to_return
