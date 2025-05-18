@@ -45,20 +45,35 @@ def potential_field_control(lidar, current_pose, goal_pose):
     )
 
     grad_repulsive = calculate_repulsive_grad(
-        lidar, current_pose, k_obs=0, d_safe=30)
+        lidar, current_pose, k_obs=1, d_safe=20)
 
     grad_r = grad_atractive - grad_repulsive
-
-    # print(grad_r, " ", grad_atractive, " ", grad_repulsive)
-
-    forward_speed = np.linalg.norm(grad_r)
+    grad_r_magnitude = np.linalg.norm(grad_r)
+    grad_attractive_magnitude = np.linalg.norm(grad_atractive)
+    
+    # Define thresholds for detection
+    LOCAL_MIN_GRAD_R_THRESHOLD = 0.05
+    SIGNIFICANT_ATTRACTIVE_THRESHOLD = 0.2
+    
+    # Check if robot is stuck in local minimum
+    is_local_minimum = (grad_r_magnitude < LOCAL_MIN_GRAD_R_THRESHOLD and 
+                        grad_attractive_magnitude > SIGNIFICANT_ATTRACTIVE_THRESHOLD)
+    
+    if is_local_minimum:
+        return {
+            "forward": 0.2,  # Move forward slowly
+            "rotation": 0.3,  # Turn to try to escape the local minimum
+        }
+    
+    # Original control logic
+    forward_speed = grad_r_magnitude
 
     if forward_speed < 0.001:
         rotation_speed = 0
     else:
-        rotation_speed = calculate_rotation_speed(grad_r, current_pose, Kv=0.33)
+        rotation_speed = calculate_rotation_speed(grad_r, current_pose, Kv=0.8)
 
-    if rotation_speed > 0.01:
+    if rotation_speed > 0.001:
         forward_speed = 0
 
     if abs(grad_atractive[0]) < 0.001 and abs(rotation_speed) < 0.001:

@@ -17,14 +17,14 @@ class Planner:
 
         self.directions = np.array(
             [
-                [-1, -1],  # Upper-left
-                [-1, 0],  # Up
-                [-1, 1],  # Upper-right
-                [0, -1],  # Left
-                [0, 1],  # Right
-                [1, -1],  # Lower-left
-                [1, 0],  # Down
-                [1, 1],  # Lower-right
+                [-1, -1],
+                [-1, 0],
+                [-1, 1],
+                [0, -1],
+                [0, 1],
+                [1, -1],
+                [1, 0],
+                [1, 1],
             ]
         )
 
@@ -60,10 +60,16 @@ class Planner:
     def plan(self, A, B):
         start = tuple(self.grid.conv_world_to_map(A[0], A[1]))
         goal = tuple(self.grid.conv_world_to_map(B[0], B[1]))
-
-        if self.grid.occupancy_map[goal[0], goal[1]] > 15:
-            print("Goal cannot be a wall")
+        
+        if self.grid.occupancy_map[start[0], start[1]] > 15:
+            print("A cannot be a wall")
             return None
+        
+        if self.grid.occupancy_map[goal[0], goal[1]] > 15:
+            print("B cannot be a wall")
+            return None
+        
+        
         
         open_set = []
         came_from = {}
@@ -76,14 +82,11 @@ class Planner:
         
         direction_from = {}
         
-        # Optional: Add a counter to limit debug prints
         iterations = 0
-        max_iterations = 10000  # Prevent infinite loops
         
-        while open_set and iterations < max_iterations:
+        while open_set:
             iterations += 1
             
-            # Print status update only every 100 iterations
             if iterations % 100 == 0:
                 print(f"Searching path... Nodes examined: {iterations}, Queue size: {len(in_open_set)}")
                 
@@ -97,7 +100,6 @@ class Planner:
             for neighbor in self.get_neighbors(current):
                 neighbor = tuple(neighbor)
                 
-                # Skip obstacles
                 if self.grid.occupancy_map[neighbor[0], neighbor[1]] > 15:
                     continue
                     
@@ -115,11 +117,8 @@ class Planner:
                         heapq.heappush(open_set, (f_score[neighbor], neighbor))
                         in_open_set.add(neighbor)
         
-        if iterations >= max_iterations:
-            print("Path search exceeded maximum iterations")
-        else:
-            print("No path found")
-                                
+        
+        print("No path found")                   
         return None
     
     def reconstruct_path_with_angles(self, came_from, direction_from, current, start_angle):

@@ -334,7 +334,7 @@ class OccupancyGrid:
 
         print(f"Occupancy grid state loaded from {filename}.p")
 
-    def get_map_inflated_obstacles(self, radius, threshold=20):
+    def get_inflated_map(self, radius, threshold=15):
         original_map = self.occupancy_map.copy()
         map_to_return = self.occupancy_map.copy()
         
@@ -361,4 +361,4 @@ class OccupancyGrid:
             circle_mask = circle[circle_y_min:circle_y_max+1, circle_x_min:circle_x_max+1]
             map_to_return[x_min:x_max+1, y_min:y_max+1][circle_mask] = original_map[x, y]
         
-        return map_to_return
+        return map_to_return, original_map
